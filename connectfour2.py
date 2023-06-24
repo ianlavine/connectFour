@@ -56,13 +56,16 @@ class Game:
         board = self.board
         if self.cur_state:
             board = self.cur_state.board
-        # for i in range(6):
-        #     str = ''
-        #     for y in range(7):
-        #         str += self.board[y][i]
-        #     print(str)
-        for row in board:
-            print(' '.join(row))
+        for i in range(6):
+            str = ''
+            for y in range(7):
+                if board[y][i] == ' ':
+                    str += '.'
+                else:
+                    str += board[y][i]
+            print(str)
+        # for row in board:
+        #     print(' '.join(row))
 
 
     def empty(self, pos):
@@ -281,5 +284,5 @@ if __name__ == "__main__":
     game = Game([[' ' for _ in range(6)] for _ in range(7)], 'X')
     # game.train()
     # print(game.total_states)
-    game.play_versus_computer()
-    # game.play()
+    # game.play_versus_computer()
+    game.play()
