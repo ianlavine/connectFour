@@ -7,6 +7,7 @@ class Board:
         self.map = board
         self.turn = turn
         self.move = move
+        self.options = options
 
     def display(self):
         # for i in range(6):
@@ -40,6 +41,15 @@ class Board:
             return False
         return self.vertical_win() or self.horizontal_win() or self.diagonal_win()
 
+    def end_game(self):
+        if self.check_win():
+            print(f"Player {self.turn} wins!")
+            return True
+        if self.check_draw():
+            print("Draw!")
+            return True
+        return False
+
     def vertical_win(self):
         ranges = self.straight_ranges(max(0, self.move[1] - 3), min(5, self.move[1] + 3))
         for range in ranges:
@@ -48,27 +58,21 @@ class Board:
         return False
 
     def horizontal_win(self):
-        board, move, turn = self.board, self.move, self.turn
-        if self.cur_state:
-            board, move, turn = self.cur_state.board, self.cur_state.move, self.cur_state.turn
-        ranges = self.straight_ranges(max(0, move[0] - 3), min(6, move[0] + 3))
+        ranges = self.straight_ranges(max(0, self.move[0] - 3), min(6, self.move[0] + 3))
         for range in ranges:
-            if all(board[c][move[1]] == turn for c in range):
+            if all(self.map[c][self.move[1]] == self.turn for c in range):
                 return True
         return False
 
     def diagonal_win(self):
-        board, turn = self.board, self.turn
-        if self.cur_state:
-            board, turn = self.cur_state.board, self.cur_state.turn
         for dir in self.diagonal_ranges():
             for i in range(len(dir) - 3):
-                if all(board[dir[j][0]][dir[j][1]] == turn for j in range(i, i + 4)):
+                if all(self.map[dir[j][0]][dir[j][1]] == self.turn for j in range(i, i + 4)):
                     return True
         return False
 
     def check_draw(self):
-        for row in self.board:
+        for row in self.map:
             if ' ' in row:
                 return False
         return True
@@ -81,13 +85,10 @@ class Board:
         return ranges
 
     def diagonal_ranges(self):
-        move = self.move
-        if self.cur_state:
-            move = self.cur_state.move
         fronthand_ranges = []
         backhand_ranges = []
 
-        lat, lon = move
+        lat, lon = self.move
         for _ in range(4):
             if lat >= 0 and lon >= 0:
                 fronthand_ranges.append((lat, lon))
@@ -95,14 +96,14 @@ class Board:
                 lon -= 1
 
         fronthand_ranges.reverse()
-        lat, lon = move
+        lat, lon = self.move
         for _ in range(3):
             if lat < 6 and lon < 5:
                 lat += 1
                 lon += 1
                 fronthand_ranges.append((lat, lon))
 
-        lat, lon = move
+        lat, lon = self.move
         for _ in range(4):
             if lat >= 0 and lon < 6:
                 backhand_ranges.append((lat, lon))
@@ -110,7 +111,7 @@ class Board:
                 lon += 1
 
         backhand_ranges.reverse()
-        lat, lon = move
+        lat, lon = self.move
         for _ in range(3):
             if lat < 6 and lon >= 1:
                 lat += 1
@@ -121,7 +122,6 @@ class Board:
 
 class State:
     def __init__(self, board) -> None:
-          
         self.board = board
         self.weight = None
         self.offense = None
@@ -139,15 +139,16 @@ class State:
 
         return max_child
 
+    def procreate(self):
+        for move in self.board.unfilled:
+            self.make_child(move)
+
     def make_child(self, move):
         new_board = copy.deepcopy(self.board)
         new_board.make_move(move)
-        new_turn = 'X' if new_board.turn == '0' else '0'
-        new_board.turn = new_turn
-
-        
-        col = self.place(move)
+        new_board.swap_turn()
         new_state = State(new_board)
+        self.children[move] = new_state
         return new_state
 
 
@@ -157,40 +158,30 @@ class Game:
         self.turn = turn
         self.move = None
         self.state_pool = dict()
-        self.cur_state = None
         self.begin_state = None
         self.options = {i for i in range(7)}
-
-    def end_game(self):
-        if self.check_win():
-            print(f"Player {self.turn} wins!")
-            return True
-        if self.check_draw():
-            print("Draw!")
-            return True
-        return False
 
     def user_turn(self):
         col = int(input(f"Player {self.turn}, enter position: ")) - 1
         if col < 0 or col > 6:
             print("Position out of range!")
             self.user_turn()
-        if self.empty(col):
-            row = self.place(col)
+        if self.board.empty(col):
+            row = self.board.place(col)
             self.move = (col, row)
         else:
             print("Column")
             self.user_turn()
 
     def computer_turn(self):
-        self.begin_state = State(copy.deepcopy(self.board), copy.deepcopy(self.options), self.turn)
-        self.cur_state = self.begin_state
+        self.begin_state = State(copy.deepcopy(self.board))
         self.look_ahead(self.begin_state)
         best_move = self.begin_state.best_move()
         print(f"Computer plays at {self.move}")
         col = self.place(best_move[1])
         self.move = (col, best_move[1])
-        self.cur_state, self.begin_state = None, None
+        self.begin_state = None
+        self.state_pool = dict()
 
     def play(self):
         self.display()
@@ -205,13 +196,13 @@ class Game:
             self.turn = '0'
             if counter % 2 == 0:
                 self.turn = 'X'
-            while not self.end_game():
+            while not self.board.end_game():
                 if self.turn == '0':
                     self.turn = 'X'
                     self.computer_turn()
                     self.display()
 
-                    if not self.end_game():
+                    if not self.board.end_game():
                         self.turn = '0'
                         self.user_turn()
                         self.display()
@@ -219,9 +210,9 @@ class Game:
                 else:
                     self.turn = '0'
                     self.user_turn()
-                    self.display()
+                    self.board.display()
 
-                    if not self.end_game():
+                    if not self.board.end_game():
                         self.turn = 'X'
                         self.computer_turn()
                         self.display()
@@ -230,28 +221,17 @@ class Game:
             counter += 1
 
     def look_ahead(self, state: State, depth=0):
-        print(depth)
-        print(state.unfilled)
 
-        for s in state.unfilled:
-            new_board = copy.deepcopy(state.board)
-            new_unfilled = copy.deepcopy(state.unfilled)
-            new_turn = 'X' if state.turn == '0' else '0'
-            new_move = s
-
-            col = self.place(new_move)
-            board_id = str(new_board) + new_turn
+        for s in state.board.options:
+            new_state = state.make_child(s)
+            board_id = ''.join([str(elem) for sublist in new_state.board.map for elem in sublist])
             if board_id in self.state_pool:
-                state.children[new_move] = self.state_pool[board_id]
+                state.children[s] = self.state_pool[board_id]
             else:
-                new_state = State(new_board, new_unfilled, new_turn, (col, new_move))
-                self.cur_state = new_state
-                state.children[new_move] = new_state
-
-                if self.check_win():
-                    new_state.weight = -1 if new_turn == 'X' else 1
+                if new_state.board.check_win():
+                    new_state.weight = -1 if new_state.turn == 'X' else 1
                     new_state.offense = new_state.weight
-                elif self.check_draw() or depth == 6:
+                elif new_state.board.check_draw() or depth == 6:
                     new_state.weight = 0
                     new_state.offense = 0
                 else:
@@ -264,18 +244,9 @@ class Game:
             state.weight = max(state.children[child].weight for child in state.children)
         state.offense = round(sum(state.children[child].offense for child in state.children)/len(state.children), 3)
 
-    def display_tree(self, state: State, indent=0, count=0):
-        if count < 2:  
-            print(' ' * indent, state.weight)
-            self.board = state.board
-            self.display()
-            print("--------------")
-            for child in state.children:
-                self.display_tree(state.children[child], indent + 2, count + 1)
-
 
 if __name__ == "__main__":
-    game = Game([[' ' for _ in range(6)] for _ in range(7)], 'X')
+    game = Game(Board([[' ' for _ in range(6)] for _ in range(7)], 'X'), 'X')
     # game.train()
     # print(game.total_states)
     game.play_versus_computer()
