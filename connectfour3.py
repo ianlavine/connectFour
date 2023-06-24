@@ -20,6 +20,9 @@ class Board:
     def empty(self, pos):
         return self.map[pos][0] == ' '
 
+    def swap_turn(self):
+        self.turn = 'X' if self.turn == '0' else '0'
+
     def make_move(self, pos):
         col = self.place(pos)
         self.move = (col, pos)
