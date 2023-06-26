@@ -124,7 +124,7 @@ class Board:
         return fronthand_ranges, backhand_ranges
 
     def evaluate(self):
-        pass
+        return 0
 
 class State(Board):
     def __init__(self, map, turn, move=None, options={i for i in range(7)}) -> None:
@@ -174,10 +174,12 @@ class Game(Board):
             self.user_turn()
 
     def computer_turn(self):
-        self.begin_state = State(self.map, '0', self.move)
+        self.begin_state = State(self.map, '0', self.move, copy.deepcopy(self.options))
         self.look_ahead(self.begin_state)
         best_move = self.begin_state.best_move()
         col = self.place(best_move[1])
+        if col == 0:
+            self.options.remove(best_move[1])
         self.move = (best_move[1], col)
         print(f"Computer plays at {self.move}")
         self.begin_state = None
@@ -194,7 +196,7 @@ class Game(Board):
         counter = 0
         while True:
             self.turn = '0'
-            if counter % 2 == 0:
+            if counter % 2 == 1:
                 self.turn = 'X'
             while not self.end_game():
                 if self.turn == '0':
@@ -234,7 +236,8 @@ class Game(Board):
                     new_state.weight = 0
                     new_state.offense = 0
                 elif depth == 6:
-                    new_state.evaluate()
+                    new_state.weight = new_state.evaluate()
+                    new_state.offense = 0
                 else:
                     self.look_ahead(new_state, depth + 1)
 
