@@ -29,8 +29,8 @@ class Board:
 
     def make_move(self, pos):
         col = self.place(pos)
-        self.move = (col, pos)
-        if col == 5:
+        self.move = (pos, col)
+        if col == 0:
             self.options.remove(pos)
 
     def place(self, pos):
@@ -123,9 +123,12 @@ class Board:
 
         return fronthand_ranges, backhand_ranges
 
-class State:
-    def __init__(self, board) -> None:
-        self.board = board
+    def evaluate(self):
+        pass
+
+class State(Board):
+    def __init__(self, map, turn, move=None, options={i for i in range(7)}) -> None:
+        super().__init__(map, turn, move, options)
         self.weight = None
         self.offense = None
         self.children = dict()
@@ -142,56 +145,50 @@ class State:
 
         return max_child
 
-    def procreate(self):
-        for move in self.board.unfilled:
-            self.make_child(move)
-
     def make_child(self, move):
-        new_board = copy.deepcopy(self.board)
-        new_board.make_move(move)
-        new_board.swap_turn()
-        new_state = State(new_board)
+        new_map = copy.deepcopy(self.map)
+        new_options = copy.deepcopy(self.options)
+        new_state = State(new_map, self.turn, options=new_options)
+        new_state.swap_turn()
+        new_state.make_move(move)
         self.children[move] = new_state
         return new_state
 
 
-class Game:
-    def __init__(self, board, turn) -> None:
-        self.board = board
-        self.turn = turn
-        self.move = None
+class Game(Board):
+    def __init__(self, map, turn, move=None, options={i for i in range(7)}) -> None:
+        super().__init__(map, turn, move, options)
         self.state_pool = dict()
         self.begin_state = None
-        self.options = {i for i in range(7)}
 
     def user_turn(self):
         col = int(input(f"Player {self.turn}, enter position: ")) - 1
         if col < 0 or col > 6:
             print("Position out of range!")
             self.user_turn()
-        if self.board.empty(col):
-            row = self.board.place(col)
+        elif self.empty(col):
+            row = self.place(col)
             self.move = (col, row)
         else:
             print("Column")
             self.user_turn()
 
     def computer_turn(self):
-        self.begin_state = State(copy.deepcopy(self.board))
+        self.begin_state = State(self.map, '0', self.move)
         self.look_ahead(self.begin_state)
         best_move = self.begin_state.best_move()
-        print(f"Computer plays at {self.move}")
         col = self.place(best_move[1])
-        self.move = (col, best_move[1])
+        self.move = (best_move[1], col)
+        print(f"Computer plays at {self.move}")
         self.begin_state = None
         self.state_pool = dict()
 
     def play(self):
-        self.board.display()
-        while not self.board.end_game():
+        self.display()
+        while not self.end_game():
             self.turn = 'X' if self.turn == '0' else '0'
             self.user_turn()
-            self.board.display()
+            self.display()
 
     def play_versus_computer(self):
         counter = 0
@@ -199,13 +196,13 @@ class Game:
             self.turn = '0'
             if counter % 2 == 0:
                 self.turn = 'X'
-            while not self.board.end_game():
+            while not self.end_game():
                 if self.turn == '0':
                     self.turn = 'X'
                     self.computer_turn()
                     self.display()
 
-                    if not self.board.end_game():
+                    if not self.end_game():
                         self.turn = '0'
                         self.user_turn()
                         self.display()
@@ -213,9 +210,9 @@ class Game:
                 else:
                     self.turn = '0'
                     self.user_turn()
-                    self.board.display()
+                    self.display()
 
-                    if not self.board.end_game():
+                    if not self.end_game():
                         self.turn = 'X'
                         self.computer_turn()
                         self.display()
@@ -224,19 +221,20 @@ class Game:
             counter += 1
 
     def look_ahead(self, state: State, depth=0):
-
-        for s in state.board.options:
+        for s in state.options:
             new_state = state.make_child(s)
-            board_id = ''.join([str(elem) for sublist in new_state.board.map for elem in sublist])
+            board_id = ''.join([str(elem) for sublist in new_state.map for elem in sublist])
             if board_id in self.state_pool:
                 state.children[s] = self.state_pool[board_id]
             else:
-                if new_state.board.check_win():
-                    new_state.weight = -1 if new_state.turn == 'X' else 1
+                if new_state.check_win():
+                    new_state.weight = 1 if new_state.turn == 'X' else -1
                     new_state.offense = new_state.weight
-                elif new_state.board.check_draw() or depth == 6:
+                elif new_state.check_draw():
                     new_state.weight = 0
                     new_state.offense = 0
+                elif depth == 6:
+                    new_state.evaluate()
                 else:
                     self.look_ahead(new_state, depth + 1)
 
@@ -249,8 +247,8 @@ class Game:
 
 
 if __name__ == "__main__":
-    game = Game(Board([[' ' for _ in range(6)] for _ in range(7)], 'X'), 'X')
+    game = Game([[' ' for _ in range(6)] for _ in range(7)], 'X', None)
     # game.train()
     # print(game.total_states)
-    # game.play_versus_computer()
-    game.play()
+    game.play_versus_computer()
+    # game.play()
