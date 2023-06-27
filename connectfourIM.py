@@ -3,6 +3,19 @@ import copy
 import math
 
 str_val = {"0": 1, "X": 2}
+val_str = {"0": " ", "1": "0", "2": "X"}
+
+def to_base_3(n):
+    print("N is: " + str(n))
+    if n == 0:
+        return '0' * 6
+    digits = []
+    while n:
+        digits.append(str(n % 3))
+        n //= 3
+    abe = ''.join(digits[::-1]).rjust(6, '0')
+    print(abe)
+    return abe
 
 
 class Board:
@@ -25,6 +38,13 @@ class Board:
             print(str)
         # for row in self.map:
         #     print(' '.join(row))
+
+    def display_number(self):
+        for i in range(7):
+            col_num = self.isolate_column_number(i)
+            base_3_num = to_base_3(col_num)
+            self.map[i] = ''.join(val_str[j] for j in base_3_num)
+        self.display()
 
     def nearest_power_of_3(self, n):
         if n == 0:
@@ -305,5 +325,9 @@ if __name__ == "__main__":
     # print(game.map)
     # game.train()
     # print(game.total_states)
-    game.play_versus_computer()
+    # game.num = 16472437332222276
+    game.num = 3099366828
+    # game.play_versus_computer()
     # game.play()
+    game.display_number()
+    # to_base_3(14)
