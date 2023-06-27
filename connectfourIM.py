@@ -1,13 +1,18 @@
 import random
 import copy
+import math
+
+str_val = {"0": 1, "X": 2}
 
 
 class Board:
-    def __init__(self, board, turn, move=None, options={0,1,2,3,4,5,6}) -> None:
+    def __init__(self, board, turn, move=None, options={0,1,2,3,4,5,6}, nr=[0,0,0,0,0,0,0], n=0) -> None:
         self.map = board
         self.turn = turn
         self.move = move
         self.options = options
+        self.numerical_repr = nr
+        self.num = n
 
     def display(self):
         for i in range(6):
@@ -20,6 +25,27 @@ class Board:
             print(str)
         # for row in self.map:
         #     print(' '.join(row))
+
+    def nearest_power_of_3(self, n):
+        if n == 0:
+            return 1
+        elif n == 1:
+            return 3
+
+        return int(3 ** math.ceil(math.log(n, 3)))
+
+    def isolate_column_number(self, pos):
+        top = self.num % (3 ** (6 * (pos + 1)))
+        bottom = 3 ** (6 * pos)
+        # print("Isolated Column number is: " + str(math.floor(top/bottom)))
+        return math.floor(top/bottom)
+
+    def update_number(self, pos):
+        col_num = self.isolate_column_number(pos)
+        col_update = str_val[self.turn] * self.nearest_power_of_3(col_num) * (3 ** (6 * pos))
+        # print("Value to update by is: " + str(col_update))
+        self.num += col_update
+        return self.num
     
     def empty(self, pos):
         return self.map[pos][0] == ' '
@@ -32,6 +58,12 @@ class Board:
         self.move = (pos, col)
         if col == 0:
             self.options.remove(pos)
+        self.update_numbers(pos)
+        self.update_number(pos)
+
+    def update_numbers(self, pos):
+        self.numerical_repr[pos] += str_val[self.turn] * self.nearest_power_of_3(self.numerical_repr[pos])
+        self.update_number(pos)
 
     def place(self, pos):
         for i in range(6):
@@ -128,8 +160,8 @@ class Board:
         return 0
 
 class State(Board):
-    def __init__(self, map, turn, move=None, options={i for i in range(7)}) -> None:
-        super().__init__(map, turn, move, options)
+    def __init__(self, map, turn, move=None, options={i for i in range(7)}, nr=[0,0,0,0,0,0,0], n=0) -> None:
+        super().__init__(map, turn, move, options, nr, n)
         self.weight = None
         self.offense = None
         self.children = dict()
@@ -149,7 +181,8 @@ class State(Board):
     def make_child(self, move):
         new_map = self.map[:]
         new_options = self.options.copy()
-        new_state = State(new_map, self.turn, options=new_options)
+        new_numerical_repr = self.numerical_repr[:]
+        new_state = State(new_map, self.turn, options=new_options, nr=new_numerical_repr, n=self.num)
         new_state.swap_turn()
         new_state.make_move(move)
         self.children[move] = new_state
@@ -157,8 +190,8 @@ class State(Board):
 
 
 class Game(Board):
-    def __init__(self, map, turn, move=None, options={i for i in range(7)}) -> None:
-        super().__init__(map, turn, move, options)
+    def __init__(self, map, turn, move=None, options={i for i in range(7)}, nr=[0,0,0,0,0,0,0], n=0) -> None:
+        super().__init__(map, turn, move, options, nr, n)
         self.state_pool = dict()
         self.begin_state = None
         self.unique = 0
@@ -171,9 +204,11 @@ class Game(Board):
             self.user_turn()
         elif self.empty(col):
             row = self.place(col)
+            self.update_numbers(col)
+            self.update_number(col)
             self.move = (col, row)
         else:
-            print("Column")
+            print("Column already filled")
             self.user_turn()
 
     def computer_turn(self):
@@ -181,11 +216,11 @@ class Game(Board):
         self.look_ahead(self.begin_state)
         best_move = self.begin_state.best_move()
         col = self.place(best_move[1])
+        self.update_numbers(best_move[1])
+        self.update_number(best_move[1])
         if col == 0:
             self.options.remove(best_move[1])
         self.move = (best_move[1], col)
-        print("Unique states: ", self.unique)
-        print("Found states: ", self.found)
         self.unique, self.found = 0, 0
         print(f"Computer plays at {self.move[0] + 1}")
         self.begin_state = None
@@ -209,21 +244,29 @@ class Game(Board):
                     self.turn = 'X'
                     self.computer_turn()
                     self.display()
+                    print(self.numerical_repr)
+                    print(self.num)
 
                     if not self.end_game():
                         self.turn = '0'
                         self.user_turn()
                         self.display()
+                        print(self.numerical_repr)
+                        print(self.num)
 
                 else:
                     self.turn = '0'
                     self.user_turn()
                     self.display()
+                    print(self.numerical_repr)
+                    print(self.num)
 
                     if not self.end_game():
                         self.turn = 'X'
                         self.computer_turn()
                         self.display()
+                        print(self.numerical_repr)
+                        print(self.num)
 
             go = input(("press any key to continue, or 'q' to quit"))
             counter += 1
@@ -259,7 +302,7 @@ class Game(Board):
 
 if __name__ == "__main__":
     game = Game([' ' * 6 for _ in range(7)], 'X', None)
-    print(game.map)
+    # print(game.map)
     # game.train()
     # print(game.total_states)
     game.play_versus_computer()
