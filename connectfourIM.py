@@ -36,7 +36,8 @@ class Board:
     def place(self, pos):
         for i in range(6):
             if i == 5 or self.map[pos][i + 1] != ' ':
-                self.map[pos][i] = self.turn
+                print
+                self.map[pos] = self.map[pos][:i] + self.turn + self.map[pos][i+1:]
                 return i
 
     def check_win(self):
@@ -124,7 +125,7 @@ class Board:
         return fronthand_ranges, backhand_ranges
 
     def evaluate(self):
-        pass
+        return 0
 
 class State(Board):
     def __init__(self, map, turn, move=None, options={i for i in range(7)}) -> None:
@@ -146,8 +147,8 @@ class State(Board):
         return max_child
 
     def make_child(self, move):
-        new_map = copy.deepcopy(self.map)
-        new_options = copy.deepcopy(self.options)
+        new_map = self.map[:]
+        new_options = self.options.copy()
         new_state = State(new_map, self.turn, options=new_options)
         new_state.swap_turn()
         new_state.make_move(move)
@@ -160,6 +161,8 @@ class Game(Board):
         super().__init__(map, turn, move, options)
         self.state_pool = dict()
         self.begin_state = None
+        self.unique = 0
+        self.found = 0
 
     def user_turn(self):
         col = int(input(f"Player {self.turn}, enter position: ")) - 1
@@ -174,12 +177,17 @@ class Game(Board):
             self.user_turn()
 
     def computer_turn(self):
-        self.begin_state = State(self.map, '0', self.move)
+        self.begin_state = State(self.map, '0', self.move, self.options.copy())
         self.look_ahead(self.begin_state)
         best_move = self.begin_state.best_move()
         col = self.place(best_move[1])
+        if col == 0:
+            self.options.remove(best_move[1])
         self.move = (best_move[1], col)
-        print(f"Computer plays at {self.move}")
+        print("Unique states: ", self.unique)
+        print("Found states: ", self.found)
+        self.unique, self.found = 0, 0
+        print(f"Computer plays at {self.move[0] + 1}")
         self.begin_state = None
         self.state_pool = dict()
 
@@ -223,18 +231,21 @@ class Game(Board):
     def look_ahead(self, state: State, depth=0):
         for s in state.options:
             new_state = state.make_child(s)
-            board_id = ''.join([str(elem) for sublist in new_state.map for elem in sublist])
+            board_id = ''.join(elem for elem in new_state.map)
             if board_id in self.state_pool:
                 state.children[s] = self.state_pool[board_id]
+                self.found += 1
             else:
+                self.unique += 1
                 if new_state.check_win():
                     new_state.weight = 1 if new_state.turn == 'X' else -1
                     new_state.offense = new_state.weight
                 elif new_state.check_draw():
                     new_state.weight = 0
                     new_state.offense = 0
-                elif depth == 6:
-                    new_state.evaluate()
+                elif depth == 7:
+                    new_state.weight = new_state.evaluate()
+                    new_state.offense = 0
                 else:
                     self.look_ahead(new_state, depth + 1)
 
@@ -247,7 +258,8 @@ class Game(Board):
 
 
 if __name__ == "__main__":
-    game = Game([[' ' for _ in range(6)] for _ in range(7)], 'X', None)
+    game = Game([' ' * 6 for _ in range(7)], 'X', None)
+    print(game.map)
     # game.train()
     # print(game.total_states)
     game.play_versus_computer()
