@@ -23,7 +23,7 @@ def to_base_2(n):
 
 
 class Board:
-    def __init__(self, board, turn, move=None, options={0,1,2,3,4,5,6}, n=0, x=None, o=None) -> None:
+    def __init__(self, board, turn, move=None, options=[0]*7, n=0, x=None, o=None) -> None:
         self.map = board
         self.turn = turn
         self.move = move
@@ -99,14 +99,12 @@ class Board:
     def make_move(self, pos):
         col = self.place(pos)
         self.move = (pos, col)
-        if col == 0:
-            self.options.remove(pos)
         self.update_number(pos)
 
     def place(self, pos):
+        self.options[pos] += 1
         for i in range(6):
             if i == 5 or self.map[pos][i + 1] != ' ':
-                print
                 self.map[pos] = self.map[pos][:i] + self.turn + self.map[pos][i+1:]
                 return i
 
@@ -209,7 +207,7 @@ class Board:
         return 0
 
 class State(Board):
-    def __init__(self, map, turn, move=None, options={i for i in range(7)}, n=0, x=0, o=0) -> None:
+    def __init__(self, map, turn, move=None, options=[0]*7, n=0, x=0, o=0) -> None:
         super().__init__(map, turn, move, options, n, x, o)
         self.weight = None
         self.offense = None
@@ -229,7 +227,7 @@ class State(Board):
 
     def make_child(self, move):
         new_map = self.map[:]
-        new_options = self.options.copy()
+        new_options = self.options[:]
         new_state = State(new_map, self.turn, options=new_options, n=self.num)
         new_state.swap_turn()
         new_state.make_move(move)
@@ -238,7 +236,7 @@ class State(Board):
 
 
 class Game(Board):
-    def __init__(self, map, turn, move=None, options={i for i in range(7)}, n=0, x=0, o=0) -> None:
+    def __init__(self, map, turn, move=None, options=[0]*7, n=0, x=0, o=0) -> None:
         super().__init__(map, turn, move, options, n, x, o)
         self.state_pool = dict()
         self.begin_state = None
@@ -259,13 +257,11 @@ class Game(Board):
             self.user_turn()
 
     def computer_turn(self):
-        self.begin_state = State(self.map, '0', self.move, self.options.copy())
+        self.begin_state = State(self.map, '0', self.move, self.options[:])
         self.look_ahead(self.begin_state)
         best_move = self.begin_state.best_move()
         col = self.place(best_move[1])
         self.update_number(best_move[1])
-        if col == 0:
-            self.options.remove(best_move[1])
         self.move = (best_move[1], col)
         self.unique, self.found = 0, 0
         print(f"Computer plays at {self.move[0] + 1}")
@@ -315,7 +311,9 @@ class Game(Board):
             counter += 1
 
     def look_ahead(self, state: State, depth=0):
-        for s in state.options:
+        for s in range(7):
+            if state.options[s] == 6:
+                continue
             new_state = state.make_child(s)
             board_id = ''.join(elem for elem in new_state.map)
             if board_id in self.state_pool:
@@ -351,7 +349,7 @@ if __name__ == "__main__":
     # game.num = 16472437332222276
     # game.num = 3099366828 
     # game.num = 44
-    # game.play_versus_computer()
+    game.play_versus_computer()
     # game.play()
     # game.move_val = 81
     # game.num = 122
