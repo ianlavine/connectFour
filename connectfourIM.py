@@ -16,9 +16,16 @@ class Board:
         self.turn = turn
         self.move = move
         self.move_val_xo = None
+        self.flat_move = 0
         self.options = options
         self.x_repr = x
         self.o_repr = o
+
+    @property
+    def turn_repr(self):
+        if self.turn == 'X':
+            return self.x_repr
+        return self.o_repr
 
     def display_number_xo(self):
         xs = to_base_2(self.x_repr)
@@ -38,6 +45,7 @@ class Board:
         height = self.get_height(pos)
         val_to_be_added = self.get_pos_value(height, pos)
         self.move_val_xo = val_to_be_added
+        self.flat_move = height * 7 + (6 - pos)
         self.add_to_repr(val_to_be_added)
 
     def get_height(self, pos):
@@ -52,6 +60,10 @@ class Board:
         x = self.x_repr & mask
         o = self.o_repr & mask
         return x or o
+
+    def get_turn_piece(self, pos_val):
+        mask = 1 << pos_val
+        return self.turn_repr & mask
 
     def get_pos_value(self, height, pos):
         return 1 << (height * 7 + (6 - pos))
@@ -85,8 +97,46 @@ class Board:
             return False
         return self.vertical_win() or self.horizontal_win() or self.diagonal_win()
 
+    def check_win_xo(self):
+        if self.check_direction(self.down_move, self.down_cutoff) >= 3:
+            return True
+        if self.check_direction(self.left_move, self.left_cutoff) + self.check_direction(self.right_move, self.right_cutoff) >= 3:
+            return True
+        return False
+
+    def check_direction(self, change, cutoff):
+        count = 0
+        for i in range(1, 4):
+            nex = change(i)
+            if cutoff(nex):
+                break
+            if self.get_turn_piece(nex):
+                count += 1
+            else:
+                break
+
+        return count
+
+    def down_move(self, i):
+        return self.flat_move - i * 7
+
+    def down_cutoff(self, i):
+        return i < 0
+
+    def left_move(self, i):
+        return self.flat_move + i
+
+    def left_cutoff(self, i):
+        return i % 7 == 0
+
+    def right_move(self, i):
+        return self.flat_move - i
+
+    def right_cutoff(self, i):
+        return i % 7 == 6
+
     def end_game(self):
-        if self.check_win():
+        if self.check_win_xo():
             print(f"Player {self.turn} wins!")
             return True
         if self.check_draw():
@@ -282,7 +332,7 @@ class Game(Board):
                 self.found += 1
             else:
                 self.unique += 1
-                if new_state.check_win():
+                if new_state.check_win_xo():
                     new_state.weight = 1 if new_state.turn == 'X' else -1
                     new_state.offense = new_state.weight
                 elif new_state.check_draw():
@@ -310,8 +360,8 @@ if __name__ == "__main__":
     # game.num = 16472437332222276
     # game.num = 3099366828 
     # game.num = 44
-    game.play_versus_computer()
-    # game.play()
+    # game.play_versus_computer()
+    game.play()
     # game.move_val = 81
     # game.num = 122
     # print(game.check_down(4))
