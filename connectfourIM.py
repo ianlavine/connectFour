@@ -29,10 +29,11 @@ class Board:
         return self.row * 7 + self.col
 
     @property
-    def flat_pos_value(self, pos=None):
-        if pos:
-            return 1 << pos
+    def flat_pos_value(self):
         return 1 << self.flat_pos
+
+    def pos_value(self, pos):
+        return 1 << pos
 
     def display_number_xo(self):
         xs = to_base_2(self.x_repr)
@@ -49,17 +50,16 @@ class Board:
             print(row)
 
     def update_number_xo(self, pos):
-        self.col = 6 - pos
-        self.get_height(self.col)
+        self.col = pos
+        self.row = self.get_height(self.col)
         self.move_val_xo = self.flat_pos_value
         self.add_to_repr()
 
     def get_height(self, pos):
-        sub = 6 - pos
+        sub = pos
         for i in range(6):
             flat_pos = i * 7 + sub
             if not self.get_piece(flat_pos):
-                self.row = i
                 return i
 
     def get_piece(self, pos_val):
@@ -206,7 +206,7 @@ class Game(Board):
             print("Position out of range!")
             self.user_turn()
         elif self.empty(col):
-            self.update_number_xo(col)
+            self.update_number_xo(6 - col)
         else:
             print("Column already filled")
             self.user_turn()
