@@ -1,6 +1,8 @@
 import random
 import copy
 import math
+import time
+
 
 def to_base_2(n):
     digits = []
@@ -11,9 +13,8 @@ def to_base_2(n):
 
 
 class Board:
-    def __init__(self, turn, move=None, x=0, o=0) -> None:
+    def __init__(self, turn, x=0, o=0) -> None:
         self.turn = turn
-        self.move = move
         self.move_val_xo = None
         self.flat_move = 0
         self.x_repr = x
@@ -73,23 +74,13 @@ class Board:
             self.o_repr += val
     
     def empty(self, pos):
-        return True
+        return self.get_height(pos) < 5
 
     def swap_turn(self):
         self.turn = 'X' if self.turn == '0' else '0'
 
-    def make_move(self, pos):
-        col = self.get_height(pos)
-        self.move = (pos, col)
-        self.update_number_xo(pos)
-
-    def check_win(self):
-        if self.move is None:
-            return False
-        return self.vertical_win() or self.horizontal_win() or self.diagonal_win()
-
     def check_win_xo(self):
-        if not self.move:
+        if not self.move_val_xo:
             return False
         if self.check_direction(self.down_move, self.down_cutoff) >= 3:
             return True
@@ -166,55 +157,12 @@ class Board:
     def check_draw(self):
         return False
 
-    def straight_ranges(self, start, end):
-        ranges = []
-        while start + 3 <= end:
-            ranges.append(range(start, start + 4))
-            start += 1
-        return ranges
-
-    def diagonal_ranges(self):
-        fronthand_ranges = []
-        backhand_ranges = []
-
-        lat, lon = self.move
-        for _ in range(4):
-            if lat >= 0 and lon >= 0:
-                fronthand_ranges.append((lat, lon))
-                lat -= 1
-                lon -= 1
-
-        fronthand_ranges.reverse()
-        lat, lon = self.move
-        for _ in range(3):
-            if lat < 6 and lon < 5:
-                lat += 1
-                lon += 1
-                fronthand_ranges.append((lat, lon))
-
-        lat, lon = self.move
-        for _ in range(4):
-            if lat >= 0 and lon < 6:
-                backhand_ranges.append((lat, lon))
-                lat -= 1
-                lon += 1
-
-        backhand_ranges.reverse()
-        lat, lon = self.move
-        for _ in range(3):
-            if lat < 6 and lon >= 1:
-                lat += 1
-                lon -= 1
-                backhand_ranges.append((lat, lon))
-
-        return fronthand_ranges, backhand_ranges
-
     def evaluate(self):
         return 0
 
 class State(Board):
-    def __init__(self, turn, move=None, x=0, o=0) -> None:
-        super().__init__(turn, move, x, o)
+    def __init__(self, turn, x=0, o=0) -> None:
+        super().__init__(turn, x, o)
         self.weight = None
         self.offense = None
         self.children = dict()
@@ -234,14 +182,14 @@ class State(Board):
     def make_child(self, move):
         new_state = State(self.turn, x=self.x_repr, o=self.o_repr)
         new_state.swap_turn()
-        new_state.make_move(move)
+        new_state.update_number_xo(pos)
         self.children[move] = new_state
         return new_state
 
 
 class Game(Board):
-    def __init__(self, turn, move=None, x=0, o=0) -> None:
-        super().__init__(turn, move, x, o)
+    def __init__(self, turn, x=0, o=0) -> None:
+        super().__init__(turn, x, o)
         self.state_pool = dict()
         self.begin_state = None
         self.unique = 0
@@ -255,20 +203,17 @@ class Game(Board):
         elif self.empty(col):
             row = self.get_height(col)
             self.update_number_xo(col)
-            self.move = (col, row)
         else:
             print("Column already filled")
             self.user_turn()
 
     def computer_turn(self):
-        self.begin_state = State('0', self.move, self.x_repr, self.o_repr)
+        self.begin_state = State('0', self.x_repr, self.o_repr)
         self.look_ahead(self.begin_state)
         best_move = self.begin_state.best_move()
-        col = self.get_height(best_move[1])
         self.update_number_xo(best_move[1])
-        self.move = (best_move[1], col)
         self.unique, self.found = 0, 0
-        print(f"Computer plays at {self.move[0] + 1}")
+        print(f"Computer plays at {best_move[1] + 1}")
         self.begin_state = None
         self.state_pool = dict()
 
@@ -290,7 +235,11 @@ class Game(Board):
                 if self.turn == '0':
                     self.turn = 'X'
 
+                    start = time.time()
                     self.computer_turn()
+                    end = time.time()
+                    print(end - start)
+
                     self.display_number_xo()
 
                     if not self.end_game():
@@ -305,7 +254,12 @@ class Game(Board):
 
                     if not self.end_game():
                         self.turn = 'X'
+
+                        start = time.time()
                         self.computer_turn()
+                        end = time.time()
+                        print(end - start)
+
                         self.display_number_xo()
 
             go = input(("press any key to continue, or 'q' to quit"))
@@ -313,7 +267,7 @@ class Game(Board):
 
     def look_ahead(self, state: State, depth=0):
         for s in range(7):
-            if state.get_height(s) == 5:
+            if not state.empty():
                 continue
             new_state = state.make_child(s)
             board_id = (new_state.x_repr, new_state.o_repr)
@@ -328,7 +282,7 @@ class Game(Board):
                 elif new_state.check_draw():
                     new_state.weight = 0
                     new_state.offense = 0
-                elif depth == 9:
+                elif depth == 7:
                     new_state.weight = new_state.evaluate()
                     new_state.offense = 0
                 else:
@@ -343,7 +297,7 @@ class Game(Board):
 
 
 if __name__ == "__main__":
-    game = Game('X', None)
+    game = Game('X')
     # game.train()
     # print(game.total_states)
     # game.num = 16472437332222276
