@@ -170,14 +170,10 @@ class Game(Board):
         super().__init__(turn, x, o)
         self.state_pool = dict()
         self.begin_state = None
-        self.unique = 0
-        self.found = 0
 
     def reset(self):
         self.state_pool = dict()
         self.begin_state = None
-        self.unique = 0
-        self.found = 0
         super().reset()
 
     def user_turn(self):
@@ -196,7 +192,6 @@ class Game(Board):
         self.look_ahead(self.begin_state)
         best_move = self.begin_state.best_move()
         self.update_number_xo(best_move[1])
-        self.unique, self.found = 0, 0
         print(f"Computer plays at {7 - best_move[1]}")
         self.begin_state = None
         self.state_pool = dict()
@@ -260,16 +255,15 @@ class Game(Board):
             board_id = (new_state.x_repr, new_state.o_repr)
             if board_id in self.state_pool:
                 state.children[s] = self.state_pool[board_id]
-                self.found += 1
+                return state.children[s].weight
             else:
-                self.unique += 1
                 if new_state.check_win_xo():
                     new_state.weight = 1 if new_state.turn == 'X' else -1
                     new_state.offense = new_state.weight
                 elif new_state.check_draw():
                     new_state.weight = 0
                     new_state.offense = 0
-                elif depth == 9:
+                elif depth == 8:
                     new_state.weight = new_state.evaluate()
                     new_state.offense = 0
                 else:
