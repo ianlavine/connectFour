@@ -1,6 +1,3 @@
-import random
-import copy
-import math
 import time
 
 
@@ -16,7 +13,8 @@ class Board:
     def __init__(self, turn, x=0, o=0) -> None:
         self.turn = turn
         self.move_val_xo = None
-        self.flat_move = 0
+        self.row = None
+        self.col = None
         self.x_repr = x
         self.o_repr = o
 
@@ -25,6 +23,16 @@ class Board:
         if self.turn == 'X':
             return self.x_repr
         return self.o_repr
+
+    @property
+    def flat_pos(self):
+        return self.row * 7 + self.col
+
+    @property
+    def flat_pos_value(self, pos=None):
+        if pos:
+            return 1 << pos
+        return 1 << self.flat_pos
 
     def display_number_xo(self):
         xs = to_base_2(self.x_repr)
@@ -41,17 +49,17 @@ class Board:
             print(row)
 
     def update_number_xo(self, pos):
-        height = self.get_height(pos)
-        val_to_be_added = self.get_pos_value(height, pos)
-        self.move_val_xo = val_to_be_added
-        self.flat_move = height * 7 + (6 - pos)
-        self.add_to_repr(val_to_be_added)
+        self.col = 6 - pos
+        self.get_height(self.col)
+        self.move_val_xo = self.flat_pos_value
+        self.add_to_repr()
 
     def get_height(self, pos):
         sub = 6 - pos
         for i in range(6):
             flat_pos = i * 7 + sub
             if not self.get_piece(flat_pos):
+                self.row = i
                 return i
 
     def get_piece(self, pos_val):
@@ -64,14 +72,11 @@ class Board:
         mask = 1 << pos_val
         return self.turn_repr & mask
 
-    def get_pos_value(self, height, pos):
-        return 1 << (height * 7 + (6 - pos))
-
-    def add_to_repr(self, val):
+    def add_to_repr(self):
         if self.turn == 'X':
-            self.x_repr += val
+            self.x_repr += self.move_val_xo
         else:
-            self.o_repr += val
+            self.o_repr += self.move_val_xo
     
     def empty(self, pos):
         return self.get_height(pos) < 5
@@ -104,43 +109,43 @@ class Board:
         return count
 
     def down_move(self, i):
-        return self.flat_move - i * 7
+        return self.flat_pos - i * 7
 
     def down_cutoff(self, i):
         return i < 0
 
     def left_move(self, i):
-        return self.flat_move + i
+        return self.flat_pos + i
 
     def left_cutoff(self, i):
         return i % 7 == 0
 
     def right_move(self, i):
-        return self.flat_move - i
+        return self.flat_pos - i
 
     def right_cutoff(self, i):
         return i % 7 == 6
 
     def up_left_move(self, i):
-        return self.flat_move + i * 8
+        return self.flat_pos + i * 8
 
     def up_left_cutoff(self, i):
         return i % 7 == 0 or i > 42
 
     def down_right_move(self, i):
-        return self.flat_move - i * 8
+        return self.flat_pos - i * 8
 
     def down_right_cutoff(self, i):
         return i % 7 == 6 or i < 0
 
     def up_right_move(self, i):
-        return self.flat_move + i * 6
+        return self.flat_pos + i * 6
 
     def up_right_cutoff(self, i):
         return i % 7 == 6 or i > 42
 
     def down_left_move(self, i):
-        return self.flat_move - i * 6
+        return self.flat_pos - i * 6
 
     def down_left_cutoff(self, i):
         return i % 7 == 0 or i < 0
@@ -179,11 +184,11 @@ class State(Board):
 
         return max_child
 
-    def make_child(self, move):
+    def make_child(self, pos):
         new_state = State(self.turn, x=self.x_repr, o=self.o_repr)
         new_state.swap_turn()
         new_state.update_number_xo(pos)
-        self.children[move] = new_state
+        self.children[pos] = new_state
         return new_state
 
 
@@ -201,7 +206,6 @@ class Game(Board):
             print("Position out of range!")
             self.user_turn()
         elif self.empty(col):
-            row = self.get_height(col)
             self.update_number_xo(col)
         else:
             print("Column already filled")
@@ -267,7 +271,7 @@ class Game(Board):
 
     def look_ahead(self, state: State, depth=0):
         for s in range(7):
-            if not state.empty():
+            if not state.empty(s):
                 continue
             new_state = state.make_child(s)
             board_id = (new_state.x_repr, new_state.o_repr)
