@@ -80,18 +80,19 @@ class Board:
     def check_win_xo(self):
         if not self.col:
             return False
-        if self.check_direction(self.down_move, self.down_cutoff) >= 3:
+        if self.check_direction(-7, self.down_cutoff) >= 3:
             return True
-        if self.check_direction(self.left_move, self.left_cutoff) + self.check_direction(self.right_move, self.right_cutoff) >= 3:
+        if self.check_direction(1, self.left_cutoff) + self.check_direction(-1, self.right_cutoff) >= 3:
             return True
-        if self.check_direction(self.up_left_move, self.up_left_cutoff) + self.check_direction(self.down_right_move, self.down_right_cutoff) >= 3:
+        if self.check_direction(8, self.up_left_cutoff) + self.check_direction(-8, self.down_right_cutoff) >= 3:
             return True
-        return self.check_direction(self.down_left_move, self.down_left_cutoff) + self.check_direction(self.up_right_move, self.up_right_cutoff) >= 3  
+        return self.check_direction(-6, self.down_left_cutoff) + self.check_direction(6, self.up_right_cutoff) >= 3  
 
     def check_direction(self, change, cutoff):
         count = 0
-        for i in range(1, 4):
-            nex = change(i)
+        nex = self.flat_pos
+        for _ in range(3):
+            nex += change
             if cutoff(nex):
                 break
             if self.get_turn_piece(nex):
@@ -101,44 +102,23 @@ class Board:
 
         return count
 
-    def down_move(self, i):
-        return self.flat_pos - i * 7
-
     def down_cutoff(self, i):
         return i < 0
-
-    def left_move(self, i):
-        return self.flat_pos + i
 
     def left_cutoff(self, i):
         return i % 7 == 0
 
-    def right_move(self, i):
-        return self.flat_pos - i
-
     def right_cutoff(self, i):
         return i % 7 == 6
-
-    def up_left_move(self, i):
-        return self.flat_pos + i * 8
 
     def up_left_cutoff(self, i):
         return i % 7 == 0 or i > 42
 
-    def down_right_move(self, i):
-        return self.flat_pos - i * 8
-
     def down_right_cutoff(self, i):
         return i % 7 == 6 or i < 0
 
-    def up_right_move(self, i):
-        return self.flat_pos + i * 6
-
     def up_right_cutoff(self, i):
         return i % 7 == 6 or i > 42
-
-    def down_left_move(self, i):
-        return self.flat_pos - i * 6
 
     def down_left_cutoff(self, i):
         return i % 7 == 0 or i < 0
