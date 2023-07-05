@@ -12,15 +12,11 @@ def to_base_2(n):
 class Board:
     def __init__(self, turn, x=0, o=0) -> None:
         self.turn = turn
-        self.move_val_xo = None
-        self.row = None
         self.col = None
         self.x_repr = x
         self.o_repr = o
 
     def reset(self):
-        self.move_val_xo = None
-        self.row = None
         self.col = None
         self.x_repr = 0
         self.o_repr = 0
@@ -30,17 +26,6 @@ class Board:
         if self.turn == 'X':
             return self.x_repr
         return self.o_repr
-
-    @property
-    def flat_pos(self):
-        return self.row * 7 + self.col
-
-    @property
-    def flat_pos_value(self):
-        return 1 << self.flat_pos
-
-    def pos_value(self, pos):
-        return 1 << pos
 
     def display_number_xo(self):
         xs = to_base_2(self.x_repr)
@@ -59,7 +44,8 @@ class Board:
     def update_number_xo(self, pos):
         self.col = pos
         self.row = self.get_height(self.col)
-        self.move_val_xo = self.flat_pos_value
+        self.flat_pos =  self.row * 7 + self.col
+        self.flat_pos_value = 1 << self.flat_pos
         self.add_to_repr()
 
     def get_height(self, pos):
@@ -81,9 +67,9 @@ class Board:
 
     def add_to_repr(self):
         if self.turn == 'X':
-            self.x_repr += self.move_val_xo
+            self.x_repr = self.x_repr | self.flat_pos_value
         else:
-            self.o_repr += self.move_val_xo
+            self.o_repr = self.o_repr | self.flat_pos_value
     
     def empty(self, pos):
         return self.get_height(pos) < 5
@@ -92,7 +78,7 @@ class Board:
         self.turn = 'X' if self.turn == '0' else '0'
 
     def check_win_xo(self):
-        if not self.move_val_xo:
+        if not self.col:
             return False
         if self.check_direction(self.down_move, self.down_cutoff) >= 3:
             return True
@@ -303,7 +289,7 @@ class Game(Board):
                 elif new_state.check_draw():
                     new_state.weight = 0
                     new_state.offense = 0
-                elif depth == 7:
+                elif depth == 9:
                     new_state.weight = new_state.evaluate()
                     new_state.offense = 0
                 else:
