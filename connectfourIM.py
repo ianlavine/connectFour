@@ -1,37 +1,15 @@
 import random
 import copy
 import math
-
-str_val = {"0": 1, "X": 2}
-val_str = {"0": " ", "1": "0", "2": "X"}
-
-def to_base_3(n):
-    if n == 0:
-        return '0' * 6
-    digits = []
-    while n:
-        digits.append(str(n % 3))
-        n //= 3
-    return ''.join(digits[::-1]).rjust(6, '0')
-
-def to_base_2(n):
-    digits = []
-    while n:
-        digits.append(str(n % 2))
-        n //= 2
-    return ''.join(digits[::-1]).rjust(42, '0')
+import time
 
 
 class Board:
-    def __init__(self, board, turn, move=None, options={0,1,2,3,4,5,6}, n=0, x=None, o=None) -> None:
+    def __init__(self, board, turn, move=None, options={0,1,2,3,4,5,6}) -> None:
         self.map = board
         self.turn = turn
         self.move = move
-        self.move_val = None
         self.options = options
-        self.num = n
-        self.x_repr = x
-        self.o_repr = o
 
     def display(self):
         for i in range(6):
@@ -44,51 +22,6 @@ class Board:
             print(str)
         # for row in self.map:
         #     print(' '.join(row))
-
-    def display_number(self):
-        for i in range(7):
-            col_num = self.isolate_column_number(i)
-            base_3_num = to_base_3(col_num)
-            self.map[i] = ''.join(val_str[j] for j in base_3_num)
-        self.display()
-
-    def display_number_xo(self):
-        xs = to_base_2(self.x_repr)
-        os = to_base_2(self.o_repr)
-        for i in range(6):
-            row = ''
-            for y in range(7):
-                if xs[i*7 + y] == '1':
-                    row += 'X'
-                elif os[i*7 + y] == '1':
-                    row += '0'
-                else:
-                    row += '.'
-            print(row)
-
-    def nearest_power_of_3(self, n):
-        if n == 0:
-            return 1
-        elif n == 1:
-            return 3
-
-        return int(3 ** math.ceil(math.log(n, 3)))
-
-    def isolate_column_number_xo(self, pos):
-        pass
-
-    def isolate_column_number(self, pos):
-        top = self.num % (3 ** (6 * (pos + 1)))
-        bottom = 3 ** (6 * pos)
-        # print("Isolated Column number is: " + str(math.floor(top/bottom)))
-        return math.floor(top/bottom)
-
-    def update_number(self, pos):
-        col_num = self.isolate_column_number(pos)
-        col_update = str_val[self.turn] * self.nearest_power_of_3(col_num) * (3 ** (6 * pos))
-        self.num += col_update
-        self.move_val = col_update
-        return self.num
     
     def empty(self, pos):
         return self.map[pos][0] == ' '
@@ -101,7 +34,6 @@ class Board:
         self.move = (pos, col)
         if col == 0:
             self.options.remove(pos)
-        self.update_number(pos)
 
     def place(self, pos):
         for i in range(6):
@@ -109,17 +41,6 @@ class Board:
                 print
                 self.map[pos] = self.map[pos][:i] + self.turn + self.map[pos][i+1:]
                 return i
-
-    def check_down(self, count):
-        sub = self.move_val / 3 ** (count - 1)
-        uvp = self.num
-        for _ in range(count):
-            uvp -= sub
-            sub *= 3
-            if uvp % sub != 0:
-                return False
-        return True 
-
 
     def check_win(self):
         if self.move is None:
@@ -209,8 +130,8 @@ class Board:
         return 0
 
 class State(Board):
-    def __init__(self, map, turn, move=None, options={i for i in range(7)}, n=0, x=0, o=0) -> None:
-        super().__init__(map, turn, move, options, n, x, o)
+    def __init__(self, map, turn, move=None, options={i for i in range(7)}) -> None:
+        super().__init__(map, turn, move, options)
         self.weight = None
         self.offense = None
         self.children = dict()
@@ -230,7 +151,7 @@ class State(Board):
     def make_child(self, move):
         new_map = self.map[:]
         new_options = self.options.copy()
-        new_state = State(new_map, self.turn, options=new_options, n=self.num)
+        new_state = State(new_map, self.turn, options=new_options)
         new_state.swap_turn()
         new_state.make_move(move)
         self.children[move] = new_state
@@ -238,8 +159,8 @@ class State(Board):
 
 
 class Game(Board):
-    def __init__(self, map, turn, move=None, options={i for i in range(7)}, n=0, x=0, o=0) -> None:
-        super().__init__(map, turn, move, options, n, x, o)
+    def __init__(self, map, turn, move=None, options={i for i in range(7)}) -> None:
+        super().__init__(map, turn, move, options)
         self.state_pool = dict()
         self.begin_state = None
         self.unique = 0
@@ -252,7 +173,6 @@ class Game(Board):
             self.user_turn()
         elif self.empty(col):
             row = self.place(col)
-            self.update_number(col)
             self.move = (col, row)
         else:
             print("Column already filled")
@@ -263,7 +183,6 @@ class Game(Board):
         self.look_ahead(self.begin_state)
         best_move = self.begin_state.best_move()
         col = self.place(best_move[1])
-        self.update_number(best_move[1])
         if col == 0:
             self.options.remove(best_move[1])
         self.move = (best_move[1], col)
@@ -273,12 +192,12 @@ class Game(Board):
         self.state_pool = dict()
 
     def play(self):
-        self.display_number()
+        self.display()
         while not self.end_game():
             self.turn = 'X' if self.turn == '0' else '0'
             self.user_turn()
             print(self.num, self.move_val)
-            self.display_number()
+            self.display()
 
     def play_versus_computer(self):
         counter = 0
@@ -289,27 +208,29 @@ class Game(Board):
             while not self.end_game():
                 if self.turn == '0':
                     self.turn = 'X'
+                    start = time.time()
                     self.computer_turn()
-                    self.display_number()
-                    print(self.num, self.move_val)
+                    end = time.time()
+                    print(end - start)
+                    self.display()
 
                     if not self.end_game():
                         self.turn = '0'
                         self.user_turn()
-                        self.display_number()
-                        print(self.num, self.move_val)
+                        self.display()
 
                 else:
                     self.turn = '0'
                     self.user_turn()
-                    self.display_number()
-                    print(self.num, self.move_val)
+                    self.display()
 
                     if not self.end_game():
                         self.turn = 'X'
+                        start = time.time()
                         self.computer_turn()
-                        self.display_number()
-                        print(self.num, self.move_val)
+                        end = time.time()
+                        print(end - start)
+                        self.display()
 
             go = input(("press any key to continue, or 'q' to quit"))
             counter += 1
@@ -351,7 +272,7 @@ if __name__ == "__main__":
     # game.num = 16472437332222276
     # game.num = 3099366828 
     # game.num = 44
-    # game.play_versus_computer()
+    game.play_versus_computer()
     # game.play()
     # game.move_val = 81
     # game.num = 122
