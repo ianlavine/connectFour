@@ -11,8 +11,7 @@ def to_base_2(n):
 
 
 class Board:
-    def __init__(self, board, turn, move=None, options=[0]*7, x=None, o=None) -> None:
-        self.map = board
+    def __init__(self, turn, move=None, options=[0]*7, x=None, o=None) -> None:
         self.turn = turn
         self.move = move
         self.move_val_xo = None
@@ -75,7 +74,7 @@ class Board:
             self.o_repr += val
     
     def empty(self, pos):
-        return self.map[pos][0] == ' '
+        return True
 
     def swap_turn(self):
         self.turn = 'X' if self.turn == '0' else '0'
@@ -87,10 +86,7 @@ class Board:
 
     def place(self, pos):
         self.options[pos] += 1
-        for i in range(6):
-            if i == 5 or self.map[pos][i + 1] != ' ':
-                self.map[pos] = self.map[pos][:i] + self.turn + self.map[pos][i+1:]
-                return i
+        return self.options[pos] - 1
 
     def check_win(self):
         if self.move is None:
@@ -102,7 +98,9 @@ class Board:
             return True
         if self.check_direction(self.left_move, self.left_cutoff) + self.check_direction(self.right_move, self.right_cutoff) >= 3:
             return True
-        return False
+        if self.check_direction(self.up_left_move, self.up_left_cutoff) + self.check_direction(self.down_right_move, self.down_right_cutoff) >= 3:
+            return True
+        return self.check_direction(self.down_left_move, self.down_left_cutoff) + self.check_direction(self.up_right_move, self.up_right_cutoff) >= 3  
 
     def check_direction(self, change, cutoff):
         count = 0
@@ -135,6 +133,30 @@ class Board:
     def right_cutoff(self, i):
         return i % 7 == 6
 
+    def up_left_move(self, i):
+        return self.flat_move + i * 8
+
+    def up_left_cutoff(self, i):
+        return i % 7 == 0 or i > 42
+
+    def down_right_move(self, i):
+        return self.flat_move - i * 8
+
+    def down_right_cutoff(self, i):
+        return i % 7 == 6 or i < 0
+
+    def up_right_move(self, i):
+        return self.flat_move + i * 6
+
+    def up_right_cutoff(self, i):
+        return i % 7 == 6 or i > 42
+
+    def down_left_move(self, i):
+        return self.flat_move - i * 6
+
+    def down_left_cutoff(self, i):
+        return i % 7 == 0 or i < 0
+
     def end_game(self):
         if self.check_win_xo():
             print(f"Player {self.turn} wins!")
@@ -144,32 +166,8 @@ class Board:
             return True
         return False
 
-    def vertical_win(self):
-        ranges = self.straight_ranges(max(0, self.move[1] - 3), min(5, self.move[1] + 3))
-        for range in ranges:
-            if all(self.map[self.move[0]][r] == self.turn for r in range):
-                return True
-        return False
-
-    def horizontal_win(self):
-        ranges = self.straight_ranges(max(0, self.move[0] - 3), min(6, self.move[0] + 3))
-        for range in ranges:
-            if all(self.map[c][self.move[1]] == self.turn for c in range):
-                return True
-        return False
-
-    def diagonal_win(self):
-        for dir in self.diagonal_ranges():
-            for i in range(len(dir) - 3):
-                if all(self.map[dir[j][0]][dir[j][1]] == self.turn for j in range(i, i + 4)):
-                    return True
-        return False
-
     def check_draw(self):
-        for row in self.map:
-            if ' ' in row:
-                return False
-        return True
+        return False
 
     def straight_ranges(self, start, end):
         ranges = []
@@ -218,8 +216,8 @@ class Board:
         return 0
 
 class State(Board):
-    def __init__(self, map, turn, move=None, options=[0]*7, x=0, o=0) -> None:
-        super().__init__(map, turn, move, options, x, o)
+    def __init__(self, turn, move=None, options=[0]*7, x=0, o=0) -> None:
+        super().__init__(turn, move, options, x, o)
         self.weight = None
         self.offense = None
         self.children = dict()
@@ -237,9 +235,8 @@ class State(Board):
         return max_child
 
     def make_child(self, move):
-        new_map = self.map[:]
         new_options = self.options[:]
-        new_state = State(new_map, self.turn, options=new_options, x=self.x_repr, o=self.o_repr)
+        new_state = State(self.turn, options=new_options, x=self.x_repr, o=self.o_repr)
         new_state.swap_turn()
         new_state.make_move(move)
         self.children[move] = new_state
@@ -247,8 +244,8 @@ class State(Board):
 
 
 class Game(Board):
-    def __init__(self, map, turn, move=None, options=[0]*7, x=0, o=0) -> None:
-        super().__init__(map, turn, move, options, x, o)
+    def __init__(self, turn, move=None, options=[0]*7, x=0, o=0) -> None:
+        super().__init__(turn, move, options, x, o)
         self.state_pool = dict()
         self.begin_state = None
         self.unique = 0
@@ -268,7 +265,7 @@ class Game(Board):
             self.user_turn()
 
     def computer_turn(self):
-        self.begin_state = State(self.map, '0', self.move, self.options[:])
+        self.begin_state = State('0', self.move, self.options[:], self.x_repr, self.o_repr)
         self.look_ahead(self.begin_state)
         best_move = self.begin_state.best_move()
         col = self.place(best_move[1])
@@ -326,7 +323,7 @@ class Game(Board):
             if state.options[s] == 6:
                 continue
             new_state = state.make_child(s)
-            board_id = ''.join(elem for elem in new_state.map)
+            board_id = (new_state.x_repr, new_state.o_repr)
             if board_id in self.state_pool:
                 state.children[s] = self.state_pool[board_id]
                 self.found += 1
@@ -354,7 +351,6 @@ class Game(Board):
 
 if __name__ == "__main__":
     game = Game([' ' * 6 for _ in range(7)], 'X', None)
-    # print(game.map)
     # game.train()
     # print(game.total_states)
     # game.num = 16472437332222276
