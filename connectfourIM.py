@@ -11,12 +11,11 @@ def to_base_2(n):
 
 
 class Board:
-    def __init__(self, turn, move=None, options=[0]*7, x=None, o=None) -> None:
+    def __init__(self, turn, move=None, x=0, o=0) -> None:
         self.turn = turn
         self.move = move
         self.move_val_xo = None
         self.flat_move = 0
-        self.options = options
         self.x_repr = x
         self.o_repr = o
 
@@ -80,13 +79,9 @@ class Board:
         self.turn = 'X' if self.turn == '0' else '0'
 
     def make_move(self, pos):
-        col = self.place(pos)
+        col = self.get_height(pos)
         self.move = (pos, col)
         self.update_number_xo(pos)
-
-    def place(self, pos):
-        self.options[pos] += 1
-        return self.options[pos] - 1
 
     def check_win(self):
         if self.move is None:
@@ -94,6 +89,8 @@ class Board:
         return self.vertical_win() or self.horizontal_win() or self.diagonal_win()
 
     def check_win_xo(self):
+        if not self.move:
+            return False
         if self.check_direction(self.down_move, self.down_cutoff) >= 3:
             return True
         if self.check_direction(self.left_move, self.left_cutoff) + self.check_direction(self.right_move, self.right_cutoff) >= 3:
@@ -216,8 +213,8 @@ class Board:
         return 0
 
 class State(Board):
-    def __init__(self, turn, move=None, options=[0]*7, x=0, o=0) -> None:
-        super().__init__(turn, move, options, x, o)
+    def __init__(self, turn, move=None, x=0, o=0) -> None:
+        super().__init__(turn, move, x, o)
         self.weight = None
         self.offense = None
         self.children = dict()
@@ -235,8 +232,7 @@ class State(Board):
         return max_child
 
     def make_child(self, move):
-        new_options = self.options[:]
-        new_state = State(self.turn, options=new_options, x=self.x_repr, o=self.o_repr)
+        new_state = State(self.turn, x=self.x_repr, o=self.o_repr)
         new_state.swap_turn()
         new_state.make_move(move)
         self.children[move] = new_state
@@ -244,8 +240,8 @@ class State(Board):
 
 
 class Game(Board):
-    def __init__(self, turn, move=None, options=[0]*7, x=0, o=0) -> None:
-        super().__init__(turn, move, options, x, o)
+    def __init__(self, turn, move=None, x=0, o=0) -> None:
+        super().__init__(turn, move, x, o)
         self.state_pool = dict()
         self.begin_state = None
         self.unique = 0
@@ -257,7 +253,7 @@ class Game(Board):
             print("Position out of range!")
             self.user_turn()
         elif self.empty(col):
-            row = self.place(col)
+            row = self.get_height(col)
             self.update_number_xo(col)
             self.move = (col, row)
         else:
@@ -265,10 +261,10 @@ class Game(Board):
             self.user_turn()
 
     def computer_turn(self):
-        self.begin_state = State('0', self.move, self.options[:], self.x_repr, self.o_repr)
+        self.begin_state = State('0', self.move, self.x_repr, self.o_repr)
         self.look_ahead(self.begin_state)
         best_move = self.begin_state.best_move()
-        col = self.place(best_move[1])
+        col = self.get_height(best_move[1])
         self.update_number_xo(best_move[1])
         self.move = (best_move[1], col)
         self.unique, self.found = 0, 0
@@ -293,34 +289,31 @@ class Game(Board):
             while not self.end_game():
                 if self.turn == '0':
                     self.turn = 'X'
+
                     self.computer_turn()
                     self.display_number_xo()
-                    print("Base 2: " + str(self.x_repr) + " " + str(self.o_repr) + " " + str(self.move_val_xo))
 
                     if not self.end_game():
                         self.turn = '0'
                         self.user_turn()
                         self.display_number_xo()
-                        print("Base 2: " + str(self.x_repr) + " " + str(self.o_repr) + " " + str(self.move_val_xo))
 
                 else:
                     self.turn = '0'
                     self.user_turn()
                     self.display_number_xo()
-                    print("Base 2: " + str(self.x_repr) + " " + str(self.o_repr) + " " + str(self.move_val_xo))
 
                     if not self.end_game():
                         self.turn = 'X'
                         self.computer_turn()
                         self.display_number_xo()
-                        print("Base 2: " + str(self.x_repr) + " " + str(self.o_repr) + " " + str(self.move_val_xo))
 
             go = input(("press any key to continue, or 'q' to quit"))
             counter += 1
 
     def look_ahead(self, state: State, depth=0):
         for s in range(7):
-            if state.options[s] == 6:
+            if state.get_height(s) == 5:
                 continue
             new_state = state.make_child(s)
             board_id = (new_state.x_repr, new_state.o_repr)
@@ -335,7 +328,7 @@ class Game(Board):
                 elif new_state.check_draw():
                     new_state.weight = 0
                     new_state.offense = 0
-                elif depth == 7:
+                elif depth == 9:
                     new_state.weight = new_state.evaluate()
                     new_state.offense = 0
                 else:
@@ -350,14 +343,14 @@ class Game(Board):
 
 
 if __name__ == "__main__":
-    game = Game([' ' * 6 for _ in range(7)], 'X', None)
+    game = Game('X', None)
     # game.train()
     # print(game.total_states)
     # game.num = 16472437332222276
     # game.num = 3099366828 
     # game.num = 44
-    # game.play_versus_computer()
-    game.play()
+    game.play_versus_computer()
+    # game.play()
     # game.move_val = 81
     # game.num = 122
     # print(game.check_down(4))
