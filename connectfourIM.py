@@ -255,7 +255,6 @@ class Game(Board):
             board_id = (new_state.x_repr, new_state.o_repr)
             if board_id in self.state_pool:
                 state.children[s] = self.state_pool[board_id]
-                return state.children[s].weight
             else:
                 if new_state.check_win_xo():
                     new_state.weight = 1 if new_state.turn == 'X' else -1
@@ -263,18 +262,27 @@ class Game(Board):
                 elif new_state.check_draw():
                     new_state.weight = 0
                     new_state.offense = 0
-                elif depth == 8:
+                elif depth == 9:
                     new_state.weight = new_state.evaluate()
                     new_state.offense = 0
                 else:
                     self.look_ahead(new_state, depth + 1)
 
                 self.state_pool[board_id] = new_state
-        
-        state.weight = min(state.children[child].weight for child in state.children)
+
+        state.offense = 0
         if state.turn == 'X':
-            state.weight = max(state.children[child].weight for child in state.children)
-        state.offense = round(sum(state.children[child].offense for child in state.children)/len(state.children), 3)
+            state.weight = float("-inf")
+            for child in state.children.values():
+                state.weight = max(state.weight, child.weight)
+                state.offense += child.offense
+        else:
+            state.weight = float("inf")
+            for child in state.children.values():
+                state.weight = min(state.weight, child.weight)
+                state.offense += child.offense
+
+        state.offense = round(state.offense/len(state.children), 3)
 
 
 if __name__ == "__main__":
