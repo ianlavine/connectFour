@@ -18,6 +18,13 @@ class Board:
         self.x_repr = x
         self.o_repr = o
 
+    def reset(self):
+        self.move_val_xo = None
+        self.row = None
+        self.col = None
+        self.x_repr = 0
+        self.o_repr = 0
+
     @property
     def turn_repr(self):
         if self.turn == 'X':
@@ -200,6 +207,13 @@ class Game(Board):
         self.unique = 0
         self.found = 0
 
+    def reset(self):
+        self.state_pool = dict()
+        self.begin_state = None
+        self.unique = 0
+        self.found = 0
+        super().reset()
+
     def user_turn(self):
         col = int(input(f"Player {self.turn}, enter position: ")) - 1
         if col < 0 or col > 6:
@@ -217,7 +231,7 @@ class Game(Board):
         best_move = self.begin_state.best_move()
         self.update_number_xo(best_move[1])
         self.unique, self.found = 0, 0
-        print(f"Computer plays at {best_move[1] + 1}")
+        print(f"Computer plays at {7 - best_move[1]}")
         self.begin_state = None
         self.state_pool = dict()
 
@@ -266,8 +280,11 @@ class Game(Board):
 
                         self.display_number_xo()
 
-            go = input(("press any key to continue, or 'q' to quit"))
+            go = input(("press any key to continue, or 'q' to quit: "))
+            if go == 'q':
+                exit()
             counter += 1
+            self.reset()
 
     def look_ahead(self, state: State, depth=0):
         for s in range(7):
