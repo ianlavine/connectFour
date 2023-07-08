@@ -143,27 +143,16 @@ class State(Board):
     def __init__(self, turn, x=0, o=0) -> None:
         super().__init__(turn, x, o)
         self.weight = None
-        self.offense = None
         self.children = dict()
 
     def best_move(self):
         max_weight = max(self.children[child].weight for child in self.children)
-        max_weight_children = [(child, move) for move, child in self.children.items() if child.weight == max_weight]
+        max_weight_child = [(child, move) for move, child in self.children.items() if child.weight == max_weight][0]
 
         if max_weight == 1:
             print("Solution found! ----------------------")
-            return max_weight_children[0]
 
-        max_offense = max_weight_children[0][0].offense
-        max_child = max_weight_children[0]
-        for child in max_weight_children:  
-            if child[0].offense > max_offense:
-                max_offense = child[0].offense
-                max_child = child
-
-        if max_child[0].weight == 1:
-            print("Solution found!")
-        return max_child
+        return max_weight_child
 
     def make_child(self, pos):
         new_state = State(self.turn, x=self.x_repr, o=self.o_repr)
@@ -281,31 +270,20 @@ class Game(Board):
             else:
                 if new_state.check_win_xo():
                     new_state.weight = 1 if new_state.turn == 'X' else -1
-                    new_state.offense = new_state.weight
                 elif new_state.check_draw():
                     new_state.weight = 0
-                    new_state.offense = 0
                 elif depth == 9:
                     new_state.weight = new_state.evaluate()
-                    new_state.offense = 0
                 else:
                     self.look_ahead(new_state, depth + 1)
 
                 self.state_pool[board_id] = new_state
 
-        state.offense = 0
         if state.turn == 'X':
-            state.weight = float("inf")
-            for child in state.children.values():
-                state.weight = min(state.weight, child.weight)
-                state.offense += child.offense
+            state.weight = min(state.children.values(), key=lambda x: x.weight).weight
         else:
-            state.weight = float("-inf")
-            for child in state.children.values():
-                state.weight = max(state.weight, child.weight)
-                state.offense += child.offense
+            state.weight = max(state.children.values(), key=lambda x: x.weight).weight
 
-        state.offense = round(state.offense/len(state.children), 3)
 
 
 if __name__ == "__main__":
