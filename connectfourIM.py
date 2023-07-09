@@ -8,13 +8,45 @@ def to_base_2(n):
         n //= 2
     return ''.join(digits[::-1]).rjust(42, '0')
 
+def down_cutoff(i):
+    return i < 0
+
+def left_cutoff(i):
+    return i % 7 == 0
+
+def right_cutoff(i):
+    return i % 7 == 6
+
+def up_left_cutoff(i):
+    return i % 7 == 0 or i > 42
+
+def down_right_cutoff(i):
+    return i % 7 == 6 or i < 0
+
+def up_right_cutoff(i):
+    return i % 7 == 6 or i > 42
+
+def down_left_cutoff(i):
+    return i % 7 == 0 or i < 0
+
+cut_offs = {
+    ((1, left_cutoff),
+    (-1, right_cutoff)),
+    ((8, up_left_cutoff),
+    (-8, down_right_cutoff)),
+    ((6, up_right_cutoff),
+    (-6, down_left_cutoff))
+}
+
 
 class Board:
-    def __init__(self, turn, x=0, o=0) -> None:
+    def __init__(self, turn, x=0, o=0, x_set={}, o_set={}) -> None:
         self.turn = turn
         self.col = None
         self.x_repr = x
         self.o_repr = o
+        self.x_set = x_set
+        self.o_set = o_set
 
     def reset(self):
         self.col = None
@@ -26,6 +58,24 @@ class Board:
         if self.turn == 'X':
             return self.x_repr
         return self.o_repr
+
+    @property
+    def opp_repr(self):
+        if self.turn == 'X':
+            return self.o_repr
+        return self.x_repr
+
+    @property
+    def turn_set(self):
+        if self.turn == 'X':
+            return self.x_set
+        return self.o_set
+
+    @property
+    def opp_set(self):
+        if self.turn == 'X':
+            return self.o_set
+        return self.x_set
 
     def display_number_xo(self):
         xs = to_base_2(self.x_repr)
@@ -45,6 +95,7 @@ class Board:
         self.col = pos
         self.row = self.get_height(self.col)
         self.flat_pos =  self.row * 7 + self.col
+        self.opp_set.discard(self.flat_pos)
         self.flat_pos_value = 1 << self.flat_pos
         self.add_to_repr()
 
@@ -54,7 +105,6 @@ class Board:
             flat_pos = i * 7 + sub
             if not self.get_piece(flat_pos):
                 return i
-        
 
     def get_piece(self, pos_val):
         mask = 1 << pos_val
@@ -66,11 +116,22 @@ class Board:
         mask = 1 << pos_val
         return self.turn_repr & mask
 
+    def get_opp_piece(self, pos_val):
+        mask = 1 << pos_val
+        return self.opp_repr & mask
+
     def add_to_repr(self):
         if self.turn == 'X':
             self.x_repr = self.x_repr | self.flat_pos_value
         else:
             self.o_repr = self.o_repr | self.flat_pos_value
+
+    def add_to_3_set(self, keys):
+        if self.turn == 'X':
+            self.x_set.update(keys)
+        else:
+            self.o_set.update(keys)
+
     
     def empty(self, pos):
         return self.get_height(pos) < 6
@@ -78,54 +139,54 @@ class Board:
     def swap_turn(self):
         self.turn = 'X' if self.turn == '0' else '0'
 
-    def check_win_xo(self):
-        if self.col is None:
+    def check_for_sets(self):
+        if not self.col:
             return False
-        if self.check_direction(-7, self.down_cutoff) >= 3:
-            return True
-        if self.check_direction(1, self.left_cutoff) + self.check_direction(-1, self.right_cutoff) >= 3:
-            return True
-        if self.check_direction(8, self.up_left_cutoff) + self.check_direction(-8, self.down_right_cutoff) >= 3:
-            return True
-        return self.check_direction(-6, self.down_left_cutoff) + self.check_direction(6, self.up_right_cutoff) >= 3  
+
+        down = self.check_direction(-7, self.down_cutoff)
+        if down == 2 and self.flat_pos < 36:
+            self.add_to_3_set({self.flat_pos + 7})
+
+        for first_cutoff, second_cutoff in cut_offs:
+            first_num, first_set, first_split  = self.check_direction(first_cutoff[0], first_cutoff[1]), 
+            second_num, second_set, second_split = self.check_direction(second_cutoff[0], second_cutoff[1])
+
+            ends = first_set | second_set
+            if ends:
+                sum = first_num + second_num
+                if sum < 2:
+                    if first_split + sum >= 2:
+                        self.add_to_3_set(first_set)
+                    if second_split + sum >= 2:
+                        self.add_to_3_set(second_set)
+                else:
+                    self.add_to_3_set(ends)
+            
 
     def check_direction(self, change, cutoff):
         count = 0
+        end = set()
+        split = 0
+
         nex = self.flat_pos
         for _ in range(3):
             nex += change
-            if cutoff(nex):
-                break
+            if cutoff(nex) or self.get_opp_piece(nex):
+                return count, end, split
             if self.get_turn_piece(nex):
-                count += 1
+                if end:
+                    split += 1
+                else:
+                    count += 1
+            elif end:
+                return count, end, split
             else:
-                break
+                end.add(nex)
 
-        return count
-
-    def down_cutoff(self, i):
-        return i < 0
-
-    def left_cutoff(self, i):
-        return i % 7 == 0
-
-    def right_cutoff(self, i):
-        return i % 7 == 6
-
-    def up_left_cutoff(self, i):
-        return i % 7 == 0 or i > 42
-
-    def down_right_cutoff(self, i):
-        return i % 7 == 6 or i < 0
-
-    def up_right_cutoff(self, i):
-        return i % 7 == 6 or i > 42
-
-    def down_left_cutoff(self, i):
-        return i % 7 == 0 or i < 0
+        return count, end, split
 
     def end_game(self):
-        if self.check_win_xo():
+        if self.check_win():
             print(f"Player {self.turn} wins!")
             return True
         if self.check_draw():
@@ -133,11 +194,18 @@ class Board:
             return True
         return False
 
+    def check_early_win(self, pos):
+        repr_pos = self.get_height(pos) * 7 + pos
+        return repr_pos in self.opp_set
+
+    def check_win(self):
+        return self.col and self.flat_pos in self.turn_set
+
     def check_draw(self):
         return False
 
     def evaluate(self):
-        return 0
+        return len(self.x_set) - len(self.o_set)
 
 class State(Board):
     def __init__(self, turn, x=0, o=0) -> None:
@@ -155,7 +223,7 @@ class State(Board):
         return max_weight_child
 
     def make_child(self, pos):
-        new_state = State(self.turn, x=self.x_repr, o=self.o_repr)
+        new_state = State(self.turn, self.x_repr, self.o_repr, self.x_set.copy(), self.o_set.copy())
         new_state.swap_turn()
         new_state.update_number_xo(pos)
         self.children[pos] = new_state
@@ -168,6 +236,7 @@ class Game(Board):
         self.state_pool = dict()
         self.begin_state = None
         self.win_path = None
+
 
     def reset(self):
         self.state_pool = dict()
@@ -263,14 +332,16 @@ class Game(Board):
         for s in range(7):
             if not state.empty(s):
                 continue
+            if state.check_early_win(s):
+                state.weight = -3 if state.turn == 'X' else 3
+                continue
+
             new_state = state.make_child(s)
             board_id = (new_state.x_repr, new_state.o_repr)
             if board_id in self.state_pool:
                 state.children[s] = self.state_pool[board_id]
             else:
-                if new_state.check_win_xo():
-                    new_state.weight = 1 if new_state.turn == 'X' else -1
-                elif new_state.check_draw():
+                if new_state.check_draw():
                     new_state.weight = 0
                 elif depth == 9:
                     new_state.weight = new_state.evaluate()
