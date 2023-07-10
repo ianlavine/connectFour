@@ -40,7 +40,7 @@ cut_offs = {
 
 
 class Board:
-    def __init__(self, turn, x=0, o=0, x_set={}, o_set={}) -> None:
+    def __init__(self, turn, x=0, o=0, x_set=set(), o_set=set()) -> None:
         self.turn = turn
         self.col = None
         self.x_repr = x
@@ -98,6 +98,7 @@ class Board:
         self.opp_set.discard(self.flat_pos)
         self.flat_pos_value = 1 << self.flat_pos
         self.add_to_repr()
+        self.check_for_sets()
 
     def get_height(self, pos):
         sub = pos
@@ -143,12 +144,12 @@ class Board:
         if not self.col:
             return False
 
-        down = self.check_direction(-7, self.down_cutoff)
-        if down == 2 and self.flat_pos < 36:
+        down = self.check_direction(-7, down_cutoff)
+        if down[0] == 2 and self.flat_pos < 36:
             self.add_to_3_set({self.flat_pos + 7})
 
         for first_cutoff, second_cutoff in cut_offs:
-            first_num, first_set, first_split  = self.check_direction(first_cutoff[0], first_cutoff[1]), 
+            first_num, first_set, first_split  = self.check_direction(first_cutoff[0], first_cutoff[1])
             second_num, second_set, second_split = self.check_direction(second_cutoff[0], second_cutoff[1])
 
             ends = first_set | second_set
@@ -172,18 +173,18 @@ class Board:
         for _ in range(3):
             nex += change
             if cutoff(nex) or self.get_opp_piece(nex):
-                return count, end, split
+                return (count, end, split)
             if self.get_turn_piece(nex):
                 if end:
                     split += 1
                 else:
                     count += 1
             elif end:
-                return count, end, split
+                return (count, end, split)
             else:
                 end.add(nex)
 
-        return count, end, split
+        return (count, end, split)
 
     def end_game(self):
         if self.check_win():
@@ -196,7 +197,7 @@ class Board:
 
     def check_early_win(self, pos):
         repr_pos = self.get_height(pos) * 7 + pos
-        return repr_pos in self.opp_set
+        return repr_pos in self.turn_set
 
     def check_win(self):
         return self.col and self.flat_pos in self.turn_set
@@ -206,10 +207,11 @@ class Board:
 
     def evaluate(self):
         return len(self.x_set) - len(self.o_set)
+        # return 0
 
 class State(Board):
-    def __init__(self, turn, x=0, o=0) -> None:
-        super().__init__(turn, x, o)
+    def __init__(self, turn, x_repr=0, o_repr=0, x_set=set(), o_set=set()) -> None:
+        super().__init__(turn, x_repr, o_repr, x_set, o_set)
         self.weight = None
         self.children = dict()
 
@@ -217,7 +219,7 @@ class State(Board):
         max_weight = max(self.children[child].weight for child in self.children)
         max_weight_child = [(child, move) for move, child in self.children.items() if child.weight == max_weight][0]
 
-        if max_weight == 1:
+        if max_weight == 3:
             print("Solution found! ----------------------")
 
         return max_weight_child
@@ -262,7 +264,7 @@ class Game(Board):
         self.begin_state = State('0', self.x_repr, self.o_repr)
         self.look_ahead(self.begin_state)
         best_move = self.begin_state.best_move()
-        if best_move[0].weight == 1:
+        if best_move[0].weight == 3:
             self.win_path = best_move[0]
         self.update_number_xo(best_move[1])
         print(f"Computer plays at {7 - best_move[1]}")
@@ -273,7 +275,7 @@ class Game(Board):
         print("Playing out win")
         op_state = self.win_path.children[self.col]
         for move, child in op_state.children.items():
-            if child.weight == 1:
+            if child.weight == 3:
                 self.update_number_xo(move)
                 print(f"Computer plays at {7 - move}")
                 return
@@ -333,6 +335,8 @@ class Game(Board):
             if not state.empty(s):
                 continue
             if state.check_early_win(s):
+                # print("Early Win Found-----------------: ", state.weight)
+                # state.display_number_xo()
                 state.weight = -3 if state.turn == 'X' else 3
                 continue
 
@@ -343,8 +347,10 @@ class Game(Board):
             else:
                 if new_state.check_draw():
                     new_state.weight = 0
-                elif depth == 9:
+                elif depth == 8:
                     new_state.weight = new_state.evaluate()
+                    # print("State Evaluated: ", new_state.weight)
+                    # new_state.display_number_xo()
                 else:
                     self.look_ahead(new_state, depth + 1)
 
