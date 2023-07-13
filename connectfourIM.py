@@ -1,6 +1,7 @@
 import time
 
-SEARCH_DEPTH = 8
+SEARCH_DEPTH = 16
+MOVE_ORDER = (3, 2, 4, 1, 5, 0, 6)
 
 def to_base_2(n):
     digits = []
@@ -227,8 +228,9 @@ class State(Board):
         # for child in self.children:
         #     print("Column " + str(7 - child) + " has weight " + str(self.children[child].weight))
         # self.display_children(1)
+        print("Best weight: " + str(max_weight))
 
-        if max_weight == 3:
+        if max_weight == 10:
             print("Solution found! ----------------------")
 
         return max_weight_child
@@ -282,7 +284,7 @@ class Game(Board):
         self.begin_state = State('0', self.x_repr, self.o_repr, self.x_set.copy(), self.o_set.copy())
         self.look_ahead(self.begin_state)
         best_move = self.begin_state.best_move()
-        # if best_move[0].weight == 3:
+        # if best_move[0].weight == 10:
         #     self.win_path = best_move[0]
         self.update_number_xo(best_move[1])
         print(f"Computer plays at {7 - best_move[1]}")
@@ -294,7 +296,7 @@ class Game(Board):
         print("Playing out win")
         op_state = self.win_path.children[self.col]
         for move, child in op_state.children.items():
-            if child.weight == 3:
+            if child.weight == 10:
                 self.update_number_xo(move)
                 print(f"Computer plays at {7 - move}")
                 return
@@ -349,47 +351,80 @@ class Game(Board):
             counter += 1
             self.reset()
 
-    def look_ahead(self, state: State, depth=0):
+    def look_ahead(self, state: State, depth=0, alpha=-float('inf'), beta=float('inf')):
         early_loss = False
-        for s in range(7):
+        for s in MOVE_ORDER:
             if state.check_immediate_loss(s):
                 # state.display_number_xo()
-                state.weight = -3 if state.turn == 'X' else 3
+                state.weight = -10 if state.turn == 'X' else 10
                 early_loss = True
                 break
 
         if not early_loss or depth == 0:
-            for s in range(7):
-                if not state.empty(s):
-                    continue
-
-                new_state = state.make_child(s)
-                board_id = (new_state.x_repr, new_state.o_repr)
-                if board_id in self.state_pool:
-                    state.children[s] = self.state_pool[board_id]
-                else:
-                    if new_state.check_draw():
-                        new_state.weight = 0
-                    elif new_state.check_win():
-                        new_state.weight = 3 if new_state.turn == 'X' else -3
-                        # if depth <= 1:
-                        #     print("Win found for " + new_state.turn + " at depth " + str(depth) + " with move " + str(7 - s))
-                    elif depth == SEARCH_DEPTH:
-                        new_state.weight = new_state.evaluate()
-                        # print("State Evaluated: ", new_state.weight)
-                        # new_state.display_number_xo()
-                    else:
-                        # if depth <= 1:
-                        #     print("BLANK for " + new_state.turn + " at depth " + str(depth) + " with move " + str(7 - s))
-                        self.look_ahead(new_state, depth + 1)
-
-                    self.state_pool[board_id] = new_state
-
             if state.turn == 'X':
-                state.weight = min(state.children.values(), key=lambda x: x.weight).weight
+                self.min_search_look_ahead(state, depth, alpha, beta)
             else:
-                state.weight = max(state.children.values(), key=lambda x: x.weight).weight
+                self.max_search_look_ahead(state, depth, alpha, beta)
 
+    def max_search_look_ahead(self, state: State, depth, alpha, beta):
+        maxEval = -float('inf')
+        for s in MOVE_ORDER:
+            if not state.empty(s):
+                continue
+
+            new_state = state.make_child(s)
+            board_id = (new_state.x_repr, new_state.o_repr)
+            if board_id in self.state_pool:
+                new_state = self.state_pool[board_id]
+            else:
+                if new_state.check_draw():
+                    new_state.weight = 0
+                elif new_state.check_win():
+                    new_state.weight = -10
+                elif depth == SEARCH_DEPTH:
+                    new_state.weight = new_state.evaluate()
+                else:
+                    self.look_ahead(new_state, depth + 1, alpha, beta)
+
+                self.state_pool[board_id] = new_state
+
+            maxEval = max(maxEval, new_state.weight)
+            alpha = max(alpha, maxEval)
+
+            if beta <= alpha:
+                break
+
+        state.weight = maxEval
+
+    def min_search_look_ahead(self, state: State, depth, alpha, beta):
+        minEval = float('inf')
+        for s in MOVE_ORDER:
+            if not state.empty(s):
+                continue
+
+            new_state = state.make_child(s)
+            board_id = (new_state.x_repr, new_state.o_repr)
+            if board_id in self.state_pool:
+                new_state = self.state_pool[board_id]
+            else:
+                if new_state.check_draw():
+                    new_state.weight = 0
+                elif new_state.check_win():
+                    new_state.weight = 10
+                elif depth == SEARCH_DEPTH:
+                    new_state.weight = new_state.evaluate()
+                else:
+                    self.look_ahead(new_state, depth + 1, alpha, beta)
+
+                self.state_pool[board_id] = new_state
+
+            minEval = min(minEval, new_state.weight)
+            beta = min(beta, minEval)
+
+            if beta <= alpha:
+                break
+
+        state.weight = minEval
 
 
 if __name__ == "__main__":
