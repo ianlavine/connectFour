@@ -1,5 +1,6 @@
 import time
 
+SEARCH_DEPTH = 8
 
 def to_base_2(n):
     digits = []
@@ -91,6 +92,10 @@ class Board:
                     row += '.'
             print(row)
 
+    def display_wins(self):
+        print("X wins: ", self.x_set)
+        print("0 wins: ", self.o_set)
+
     def update_number_xo(self, pos):
         self.col = pos
         self.row = self.get_height(self.col)
@@ -141,7 +146,7 @@ class Board:
         self.turn = 'X' if self.turn == '0' else '0'
 
     def check_for_sets(self):
-        if not self.col:
+        if self.col is None:
             return False
 
         down = self.check_direction(-7, down_cutoff)
@@ -197,10 +202,10 @@ class Board:
 
     def check_early_win(self, pos):
         repr_pos = self.get_height(pos) * 7 + pos
-        return repr_pos in self.turn_set
+        return repr_pos in self.opp_set
 
     def check_win(self):
-        return self.col and self.flat_pos in self.turn_set
+        return self.col is not None and self.flat_pos in self.turn_set
 
     def check_draw(self):
         return False
@@ -219,6 +224,10 @@ class State(Board):
         max_weight = max(self.children[child].weight for child in self.children)
         max_weight_child = [(child, move) for move, child in self.children.items() if child.weight == max_weight][0]
 
+        # for child in self.children:
+        #     print("Column " + str(7 - child) + " has weight " + str(self.children[child].weight))
+        # self.display_children(1)
+
         if max_weight == 3:
             print("Solution found! ----------------------")
 
@@ -231,10 +240,18 @@ class State(Board):
         self.children[pos] = new_state
         return new_state
 
+    def display_children(self, depth):
+        if depth == 0:
+            for child in self.children:
+                print(str(7 - self.col) + ": Column " + str(7 - child) + " has weight " + str(self.children[child].weight))
+        else:
+            for child in self.children:
+                self.children[child].display_children(depth - 1)
+
 
 class Game(Board):
-    def __init__(self, turn, x=0, o=0) -> None:
-        super().__init__(turn, x, o)
+    def __init__(self, turn, x=0, o=0, x_set=set(), o_set=set()) -> None:
+        super().__init__(turn, x, o, x_set, o_set)
         self.state_pool = dict()
         self.begin_state = None
         self.win_path = None
@@ -253,6 +270,7 @@ class Game(Board):
             self.user_turn()
         elif self.empty(col):
             self.update_number_xo(col)
+            self.display_wins()
         else:
             print("Column already filled")
             self.user_turn()
@@ -261,15 +279,16 @@ class Game(Board):
         if self.win_path:
             self.play_out_win()
             return
-        self.begin_state = State('0', self.x_repr, self.o_repr)
+        self.begin_state = State('0', self.x_repr, self.o_repr, self.x_set.copy(), self.o_set.copy())
         self.look_ahead(self.begin_state)
         best_move = self.begin_state.best_move()
-        if best_move[0].weight == 3:
-            self.win_path = best_move[0]
+        # if best_move[0].weight == 3:
+        #     self.win_path = best_move[0]
         self.update_number_xo(best_move[1])
         print(f"Computer plays at {7 - best_move[1]}")
         self.begin_state = None
         self.state_pool = dict()
+        self.display_wins()
 
     def play_out_win(self):
         print("Playing out win")
@@ -334,11 +353,11 @@ class Game(Board):
         for s in range(7):
             if not state.empty(s):
                 continue
-            if state.check_early_win(s):
-                # print("Early Win Found-----------------: ", state.weight)
-                # state.display_number_xo()
-                state.weight = -3 if state.turn == 'X' else 3
-                continue
+            # if state.check_early_win(s):
+            #     # print("Early Win Found-----------------: ", state.weight)
+            #     # state.display_number_xo()
+            #     state.weight = -3 if state.turn == 'X' else 3
+            #     continue
 
             new_state = state.make_child(s)
             board_id = (new_state.x_repr, new_state.o_repr)
@@ -347,11 +366,17 @@ class Game(Board):
             else:
                 if new_state.check_draw():
                     new_state.weight = 0
-                elif depth == 8:
+                elif new_state.check_win():
+                    new_state.weight = 3 if new_state.turn == 'X' else -3
+                    # if depth <= 1:
+                    #     print("Win found for " + new_state.turn + " at depth " + str(depth) + " with move " + str(7 - s))
+                elif depth == SEARCH_DEPTH:
                     new_state.weight = new_state.evaluate()
                     # print("State Evaluated: ", new_state.weight)
                     # new_state.display_number_xo()
                 else:
+                    # if depth <= 1:
+                    #     print("BLANK for " + new_state.turn + " at depth " + str(depth) + " with move " + str(7 - s))
                     self.look_ahead(new_state, depth + 1)
 
                 self.state_pool[board_id] = new_state
