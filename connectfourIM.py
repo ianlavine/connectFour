@@ -200,7 +200,7 @@ class Board:
             return True
         return False
 
-    def check_early_win(self, pos):
+    def check_immediate_loss(self, pos):
         repr_pos = self.get_height(pos) * 7 + pos
         return repr_pos in self.opp_set
 
@@ -350,41 +350,45 @@ class Game(Board):
             self.reset()
 
     def look_ahead(self, state: State, depth=0):
+        early_loss = False
         for s in range(7):
-            if not state.empty(s):
-                continue
-            # if state.check_early_win(s):
-            #     # print("Early Win Found-----------------: ", state.weight)
-            #     # state.display_number_xo()
-            #     state.weight = -3 if state.turn == 'X' else 3
-            #     continue
+            if state.check_immediate_loss(s):
+                # state.display_number_xo()
+                state.weight = -3 if state.turn == 'X' else 3
+                early_loss = True
+                break
 
-            new_state = state.make_child(s)
-            board_id = (new_state.x_repr, new_state.o_repr)
-            if board_id in self.state_pool:
-                state.children[s] = self.state_pool[board_id]
-            else:
-                if new_state.check_draw():
-                    new_state.weight = 0
-                elif new_state.check_win():
-                    new_state.weight = 3 if new_state.turn == 'X' else -3
-                    # if depth <= 1:
-                    #     print("Win found for " + new_state.turn + " at depth " + str(depth) + " with move " + str(7 - s))
-                elif depth == SEARCH_DEPTH:
-                    new_state.weight = new_state.evaluate()
-                    # print("State Evaluated: ", new_state.weight)
-                    # new_state.display_number_xo()
+        if not early_loss or depth == 0:
+            for s in range(7):
+                if not state.empty(s):
+                    continue
+
+                new_state = state.make_child(s)
+                board_id = (new_state.x_repr, new_state.o_repr)
+                if board_id in self.state_pool:
+                    state.children[s] = self.state_pool[board_id]
                 else:
-                    # if depth <= 1:
-                    #     print("BLANK for " + new_state.turn + " at depth " + str(depth) + " with move " + str(7 - s))
-                    self.look_ahead(new_state, depth + 1)
+                    if new_state.check_draw():
+                        new_state.weight = 0
+                    elif new_state.check_win():
+                        new_state.weight = 3 if new_state.turn == 'X' else -3
+                        # if depth <= 1:
+                        #     print("Win found for " + new_state.turn + " at depth " + str(depth) + " with move " + str(7 - s))
+                    elif depth == SEARCH_DEPTH:
+                        new_state.weight = new_state.evaluate()
+                        # print("State Evaluated: ", new_state.weight)
+                        # new_state.display_number_xo()
+                    else:
+                        # if depth <= 1:
+                        #     print("BLANK for " + new_state.turn + " at depth " + str(depth) + " with move " + str(7 - s))
+                        self.look_ahead(new_state, depth + 1)
 
-                self.state_pool[board_id] = new_state
+                    self.state_pool[board_id] = new_state
 
-        if state.turn == 'X':
-            state.weight = min(state.children.values(), key=lambda x: x.weight).weight
-        else:
-            state.weight = max(state.children.values(), key=lambda x: x.weight).weight
+            if state.turn == 'X':
+                state.weight = min(state.children.values(), key=lambda x: x.weight).weight
+            else:
+                state.weight = max(state.children.values(), key=lambda x: x.weight).weight
 
 
 
