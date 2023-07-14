@@ -1,6 +1,6 @@
 import time
 
-SEARCH_DEPTH = 14
+SEARCH_DEPTH = 10
 MOVE_ORDER = (3, 2, 4, 1, 5, 0, 6)
 
 def to_base_2(n):
@@ -204,6 +204,11 @@ class Board:
     def evaluate(self):
         return len(self.x_set) - len(self.o_set)
 
+class Leaf():
+
+    def __init__(self, weight):
+        self.weight = weight
+
 class State(Board):
     def __init__(self, turn, x_repr=0, o_repr=0, x_set=set(), o_set=set(), depth=0) -> None:
         super().__init__(turn, x_repr, o_repr, x_set, o_set)
@@ -228,6 +233,10 @@ class State(Board):
         new_state.update_number_xo(pos)
         self.children[pos] = new_state
         return new_state
+
+    def make_leaf(self, pos):
+        new_state = Leaf(self.weight)
+        self.children[pos] = new_state
 
     def display_children(self, depth):
         if depth == 0:
@@ -348,8 +357,7 @@ class Game(Board):
         early_loss = state.immediate_loss_loop()
         if early_loss is not None:
             state.weight = -10 if state.turn == 'X' else 10
-            new_state = state.make_child(early_loss)
-            new_state.weight = state.weight
+            state.make_leaf(early_loss)
         else:
             if state.turn == 'X':
                 self.min_search_look_ahead(state, depth, alpha, beta)
