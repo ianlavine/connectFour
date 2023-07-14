@@ -1,6 +1,6 @@
 import time
 
-SEARCH_DEPTH = 16
+SEARCH_DEPTH = 14
 MOVE_ORDER = (3, 2, 4, 1, 5, 0, 6)
 
 def to_base_2(n):
@@ -256,13 +256,11 @@ class Game(Board):
         super().__init__(turn, x, o, x_set, o_set)
         self.state_pool = dict()
         self.begin_state = None
-        self.win_path = None
-
+        self.search_depth = SEARCH_DEPTH
 
     def reset(self):
         self.state_pool = dict()
         self.begin_state = None
-        self.win_path = None
         super().reset()
 
     def user_turn(self):
@@ -278,28 +276,16 @@ class Game(Board):
             self.user_turn()
 
     def computer_turn(self):
-        if self.win_path:
-            self.play_out_win()
-            return
         self.begin_state = State('0', self.x_repr, self.o_repr, self.x_set.copy(), self.o_set.copy())
         self.look_ahead(self.begin_state)
         best_move = self.begin_state.best_move()
-        # if best_move[0].weight == 10:
-        #     self.win_path = best_move[0]
+        if best_move[0].weight == 10:
+            self.search_depth -= 2
         self.update_number_xo(best_move[1])
         print(f"Computer plays at {7 - best_move[1]}")
         self.begin_state = None
         self.state_pool = dict()
         self.display_wins()
-
-    def play_out_win(self):
-        print("Playing out win")
-        op_state = self.win_path.children[self.col]
-        for move, child in op_state.children.items():
-            if child.weight == 10:
-                self.update_number_xo(move)
-                print(f"Computer plays at {7 - move}")
-                return
 
     def play(self):
         self.display_number_xo()
@@ -355,8 +341,9 @@ class Game(Board):
         early_loss = False
         for s in MOVE_ORDER:
             if state.check_immediate_loss(s):
-                # state.display_number_xo()
                 state.weight = -10 if state.turn == 'X' else 10
+                new_state = state.make_child(s)
+                new_state.weight = state.weight
                 early_loss = True
                 break
 
@@ -379,9 +366,7 @@ class Game(Board):
             else:
                 if new_state.check_draw():
                     new_state.weight = 0
-                elif new_state.check_win():
-                    new_state.weight = -10
-                elif depth == SEARCH_DEPTH:
+                elif depth == self.search_depth:
                     new_state.weight = new_state.evaluate()
                 else:
                     self.look_ahead(new_state, depth + 1, alpha, beta)
@@ -409,9 +394,7 @@ class Game(Board):
             else:
                 if new_state.check_draw():
                     new_state.weight = 0
-                elif new_state.check_win():
-                    new_state.weight = 10
-                elif depth == SEARCH_DEPTH:
+                elif depth == self.search_depth:
                     new_state.weight = new_state.evaluate()
                 else:
                     self.look_ahead(new_state, depth + 1, alpha, beta)
