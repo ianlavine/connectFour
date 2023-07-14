@@ -1,6 +1,6 @@
 import time
 
-SEARCH_DEPTH = 14
+SEARCH_DEPTH = 10
 MOVE_ORDER = (3, 2, 4, 1, 5, 0, 6)
 
 def to_base_2(n):
@@ -192,15 +192,6 @@ class Board:
 
         return (count, end, split)
 
-    def end_game(self):
-        if self.check_win():
-            print(f"Player {self.turn} wins!")
-            return True
-        if self.check_draw():
-            print("Draw!")
-            return True
-        return False
-
     def check_immediate_loss(self, pos):
         repr_pos = self.get_height(pos) * 7 + pos
         return repr_pos in self.opp_set
@@ -208,26 +199,21 @@ class Board:
     def check_win(self):
         return self.col is not None and self.flat_pos in self.turn_set
 
-    def check_draw(self):
-        return False
-
     def evaluate(self):
         return len(self.x_set) - len(self.o_set)
         # return 0
 
 class State(Board):
-    def __init__(self, turn, x_repr=0, o_repr=0, x_set=set(), o_set=set()) -> None:
+    def __init__(self, turn, x_repr=0, o_repr=0, x_set=set(), o_set=set(), depth=0) -> None:
         super().__init__(turn, x_repr, o_repr, x_set, o_set)
         self.weight = None
         self.children = dict()
+        self.depth = depth
 
     def best_move(self):
         max_weight = max(self.children[child].weight for child in self.children)
         max_weight_child = [(child, move) for move, child in self.children.items() if child.weight == max_weight][0]
 
-        # for child in self.children:
-        #     print("Column " + str(7 - child) + " has weight " + str(self.children[child].weight))
-        # self.display_children(1)
         print("Best weight: " + str(max_weight))
 
         if max_weight == 10:
@@ -236,7 +222,7 @@ class State(Board):
         return max_weight_child
 
     def make_child(self, pos):
-        new_state = State(self.turn, self.x_repr, self.o_repr, self.x_set.copy(), self.o_set.copy())
+        new_state = State(self.turn, self.x_repr, self.o_repr, self.x_set.copy(), self.o_set.copy(), self.depth + 1)
         new_state.swap_turn()
         new_state.update_number_xo(pos)
         self.children[pos] = new_state
@@ -250,6 +236,11 @@ class State(Board):
             for child in self.children:
                 self.children[child].display_children(depth - 1)
 
+    def check_draw(self):
+        if self.depth == 42:
+            return True
+        return self.depth >= 40 and not self.x_set and not self.o_set
+
 
 class Game(Board):
     def __init__(self, turn, x=0, o=0, x_set=set(), o_set=set()) -> None:
@@ -262,6 +253,21 @@ class Game(Board):
         self.state_pool = dict()
         self.begin_state = None
         super().reset()
+
+    def end_game(self):
+        if self.check_win():
+            print(f"Player {self.turn} wins!")
+            return True
+        if self.check_draw():
+            print("Draw!")
+            return True
+        return False
+
+    def check_draw(self):
+        for i in range(7):
+            if self.get_height(i) < 6:
+                return False
+        return True
 
     def user_turn(self):
         col = 7 - int(input(f"Player {self.turn}, enter position: "))
