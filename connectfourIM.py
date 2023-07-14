@@ -1,6 +1,6 @@
 import time
 
-SEARCH_DEPTH = 10
+SEARCH_DEPTH = 14
 MOVE_ORDER = (3, 2, 4, 1, 5, 0, 6)
 
 def to_base_2(n):
@@ -138,7 +138,6 @@ class Board:
             self.x_set.update(keys)
         else:
             self.o_set.update(keys)
-
     
     def empty(self, pos):
         return self.get_height(pos) < 6
@@ -192,16 +191,18 @@ class Board:
 
         return (count, end, split)
 
-    def check_immediate_loss(self, pos):
-        repr_pos = self.get_height(pos) * 7 + pos
-        return repr_pos in self.opp_set
+    def immediate_loss_loop(self):
+        for opp in self.opp_set:
+            quo, col = divmod(opp, 7)
+            if self.get_height(col) == quo:
+                return col
+        return None
 
     def check_win(self):
         return self.col is not None and self.flat_pos in self.turn_set
 
     def evaluate(self):
         return len(self.x_set) - len(self.o_set)
-        # return 0
 
 class State(Board):
     def __init__(self, turn, x_repr=0, o_repr=0, x_set=set(), o_set=set(), depth=0) -> None:
@@ -344,16 +345,12 @@ class Game(Board):
             self.reset()
 
     def look_ahead(self, state: State, depth=0, alpha=-float('inf'), beta=float('inf')):
-        early_loss = False
-        for s in MOVE_ORDER:
-            if state.check_immediate_loss(s):
-                state.weight = -10 if state.turn == 'X' else 10
-                new_state = state.make_child(s)
-                new_state.weight = state.weight
-                early_loss = True
-                break
-
-        if not early_loss or depth == 0:
+        early_loss = state.immediate_loss_loop()
+        if early_loss is not None:
+            state.weight = -10 if state.turn == 'X' else 10
+            new_state = state.make_child(early_loss)
+            new_state.weight = state.weight
+        else:
             if state.turn == 'X':
                 self.min_search_look_ahead(state, depth, alpha, beta)
             else:
