@@ -1,6 +1,6 @@
 import time
 
-SEARCH_DEPTH = 10
+SEARCH_DEPTH = 8
 MOVE_ORDER = (3, 2, 4, 1, 5, 0, 6)
 
 def to_base_2(n):
@@ -54,6 +54,11 @@ class Board:
         self.col = None
         self.x_repr = 0
         self.o_repr = 0
+        self.x_set = set()
+        self.o_set = set()
+        self.row = None
+        self.flat_pos = None
+        self.flat_pos_value = None
 
     @property
     def turn_repr(self):
@@ -262,6 +267,7 @@ class Game(Board):
     def reset(self):
         self.state_pool = dict()
         self.begin_state = None
+        self.search_depth = SEARCH_DEPTH
         super().reset()
 
     def end_game(self):
