@@ -1,7 +1,24 @@
 import time
 
-SEARCH_DEPTH = 8
+SEARCH_DEPTH = 14
 MOVE_ORDER = (3, 2, 4, 1, 5, 0, 6)
+
+adv_dict = {"resp": 3, "next": {6: 3, 5: 5, 4: 1, 3: 3, 2: 5, 1: 1, 0: 3}}
+
+dis_dict = {6: {"resp": 5, 
+                "next": {}}, 
+            5: {"resp": 4, 
+                "next": {}},
+            4: {"resp": 4, 
+                "next": {}},
+            3: {"resp": 3, 
+                "next": {}},
+            2: {"resp": 2, 
+                "next": {}},
+            1: {"resp": 2, 
+                "next": {}},
+            0: {"resp": 1, 
+                "next": {}}}
 
 def to_base_2(n):
     digits = []
@@ -263,11 +280,15 @@ class Game(Board):
         self.state_pool = dict()
         self.begin_state = None
         self.search_depth = SEARCH_DEPTH
+        self.opening_count = 0
+        self.opening_dict = None
 
     def reset(self):
         self.state_pool = dict()
         self.begin_state = None
         self.search_depth = SEARCH_DEPTH
+        self.opening_count = 0
+        self.opening_dict = None
         super().reset()
 
     def end_game(self):
@@ -298,16 +319,34 @@ class Game(Board):
             self.user_turn()
 
     def computer_turn(self):
-        self.begin_state = State('0', self.x_repr, self.o_repr, self.x_set.copy(), self.o_set.copy())
-        self.look_ahead(self.begin_state)
-        best_move = self.begin_state.best_move()
-        if best_move[0].weight == 10:
-            self.search_depth -= 2
-        self.update_number_xo(best_move[1])
-        print(f"Computer plays at {7 - best_move[1]}")
-        self.begin_state = None
-        self.state_pool = dict()
-        self.display_wins()
+        if self.opening_count < 2:
+            resp = None
+            print("this is the ORIGINAL opening dict: " + str(self.opening_dict))
+            if "resp" not in self.opening_dict:
+                resp = self.opening_dict[self.col]
+                print("this was the move you just made: " + str(self.col))
+                if type(resp) == dict:
+                    self.opening_dict = resp["next"]
+                    resp = resp["resp"]
+            else:
+                resp = self.opening_dict["resp"]
+                self.opening_dict = self.opening_dict["next"]
+                print("this is the new opening dict: " + str(self.opening_dict))
+
+            self.update_number_xo(resp)
+            print(f"Computer plays at {7 - resp}")
+            self.opening_count += 1
+        else:
+            self.begin_state = State('0', self.x_repr, self.o_repr, self.x_set.copy(), self.o_set.copy())
+            self.look_ahead(self.begin_state)
+            best_move = self.begin_state.best_move()
+            if best_move[0].weight == 10:
+                self.search_depth -= 2
+            self.update_number_xo(best_move[1])
+            print(f"Computer plays at {7 - best_move[1]}")
+            self.begin_state = None
+            self.state_pool = dict()
+            self.display_wins()
 
     def play(self):
         self.display_number_xo()
@@ -320,8 +359,10 @@ class Game(Board):
         counter = 0
         while True:
             self.turn = '0'
-            if counter % 2 == 0:
+            self.opening_dict = adv_dict
+            if counter % 2 == 1:
                 self.turn = 'X'
+                self.opening_dict = dis_dict
             while not self.end_game():
                 if self.turn == '0':
                     self.turn = 'X'
