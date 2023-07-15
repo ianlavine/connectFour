@@ -1,7 +1,24 @@
 import time
 
-SEARCH_DEPTH = 10
+SEARCH_DEPTH = 14
 MOVE_ORDER = (3, 2, 4, 1, 5, 0, 6)
+
+adv_dict = {"resp": 3, "next": {6: 3, 5: 5, 4: 1, 3: 3, 2: 5, 1: 1, 0: 3}}
+
+dis_dict = {6: {"resp": 5, 
+                "next": {}}, 
+            5: {"resp": 4, 
+                "next": {}},
+            4: {"resp": 4, 
+                "next": {}},
+            3: {"resp": 3, 
+                "next": {}},
+            2: {"resp": 2, 
+                "next": {}},
+            1: {"resp": 2, 
+                "next": {}},
+            0: {"resp": 1, 
+                "next": {}}}
 
 def to_base_2(n):
     digits = []
@@ -54,6 +71,11 @@ class Board:
         self.col = None
         self.x_repr = 0
         self.o_repr = 0
+        self.x_set = set()
+        self.o_set = set()
+        self.row = None
+        self.flat_pos = None
+        self.flat_pos_value = None
 
     @property
     def turn_repr(self):
@@ -138,7 +160,6 @@ class Board:
             self.x_set.update(keys)
         else:
             self.o_set.update(keys)
-
     
     def empty(self, pos):
         return self.get_height(pos) < 6
@@ -192,16 +213,23 @@ class Board:
 
         return (count, end, split)
 
-    def check_immediate_loss(self, pos):
-        repr_pos = self.get_height(pos) * 7 + pos
-        return repr_pos in self.opp_set
+    def immediate_loss_loop(self):
+        for opp in self.opp_set:
+            quo, col = divmod(opp, 7)
+            if self.get_height(col) == quo:
+                return col
+        return None
 
     def check_win(self):
         return self.col is not None and self.flat_pos in self.turn_set
 
     def evaluate(self):
         return len(self.x_set) - len(self.o_set)
-        # return 0
+
+class Leaf():
+
+    def __init__(self, weight):
+        self.weight = weight
 
 class State(Board):
     def __init__(self, turn, x_repr=0, o_repr=0, x_set=set(), o_set=set(), depth=0) -> None:
@@ -228,6 +256,10 @@ class State(Board):
         self.children[pos] = new_state
         return new_state
 
+    def make_leaf(self, pos):
+        new_state = Leaf(self.weight)
+        self.children[pos] = new_state
+
     def display_children(self, depth):
         if depth == 0:
             for child in self.children:
@@ -248,10 +280,15 @@ class Game(Board):
         self.state_pool = dict()
         self.begin_state = None
         self.search_depth = SEARCH_DEPTH
+        self.opening_count = 0
+        self.opening_dict = None
 
     def reset(self):
         self.state_pool = dict()
         self.begin_state = None
+        self.search_depth = SEARCH_DEPTH
+        self.opening_count = 0
+        self.opening_dict = None
         super().reset()
 
     def end_game(self):
@@ -282,16 +319,34 @@ class Game(Board):
             self.user_turn()
 
     def computer_turn(self):
-        self.begin_state = State('0', self.x_repr, self.o_repr, self.x_set.copy(), self.o_set.copy())
-        self.look_ahead(self.begin_state)
-        best_move = self.begin_state.best_move()
-        if best_move[0].weight == 10:
-            self.search_depth -= 2
-        self.update_number_xo(best_move[1])
-        print(f"Computer plays at {7 - best_move[1]}")
-        self.begin_state = None
-        self.state_pool = dict()
-        self.display_wins()
+        if self.opening_count < 2:
+            resp = None
+            print("this is the ORIGINAL opening dict: " + str(self.opening_dict))
+            if "resp" not in self.opening_dict:
+                resp = self.opening_dict[self.col]
+                print("this was the move you just made: " + str(self.col))
+                if type(resp) == dict:
+                    self.opening_dict = resp["next"]
+                    resp = resp["resp"]
+            else:
+                resp = self.opening_dict["resp"]
+                self.opening_dict = self.opening_dict["next"]
+                print("this is the new opening dict: " + str(self.opening_dict))
+
+            self.update_number_xo(resp)
+            print(f"Computer plays at {7 - resp}")
+            self.opening_count += 1
+        else:
+            self.begin_state = State('0', self.x_repr, self.o_repr, self.x_set.copy(), self.o_set.copy())
+            self.look_ahead(self.begin_state)
+            best_move = self.begin_state.best_move()
+            if best_move[0].weight == 10:
+                self.search_depth -= 2
+            self.update_number_xo(best_move[1])
+            print(f"Computer plays at {7 - best_move[1]}")
+            self.begin_state = None
+            self.state_pool = dict()
+            self.display_wins()
 
     def play(self):
         self.display_number_xo()
@@ -304,8 +359,10 @@ class Game(Board):
         counter = 0
         while True:
             self.turn = '0'
-            if counter % 2 == 0:
+            self.opening_dict = adv_dict
+            if counter % 2 == 1:
                 self.turn = 'X'
+                self.opening_dict = dis_dict
             while not self.end_game():
                 if self.turn == '0':
                     self.turn = 'X'
@@ -344,16 +401,11 @@ class Game(Board):
             self.reset()
 
     def look_ahead(self, state: State, depth=0, alpha=-float('inf'), beta=float('inf')):
-        early_loss = False
-        for s in MOVE_ORDER:
-            if state.check_immediate_loss(s):
-                state.weight = -10 if state.turn == 'X' else 10
-                new_state = state.make_child(s)
-                new_state.weight = state.weight
-                early_loss = True
-                break
-
-        if not early_loss or depth == 0:
+        early_loss = state.immediate_loss_loop()
+        if early_loss is not None:
+            state.weight = -10 if state.turn == 'X' else 10
+            state.make_leaf(early_loss)
+        else:
             if state.turn == 'X':
                 self.min_search_look_ahead(state, depth, alpha, beta)
             else:
